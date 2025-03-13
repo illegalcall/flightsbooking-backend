@@ -1,0 +1,6 @@
+#!/bin/sh
+. "$HOME/.nvm/nvm.sh"  # if using nvm, adjust the path as needed
+
+npx run build
+npx run test
+npx run lint
