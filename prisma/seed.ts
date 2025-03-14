@@ -1,202 +1,541 @@
-import { PrismaClient } from '@prisma/client';
-import { CabinClass, FlightStatus } from '@prisma/client';
+import { PrismaClient, CabinClass } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding database...');
+  console.log('Seeding database with Indian airports and flights...');
 
-  // Create airports
-  const airports = await Promise.all([
-    prisma.airport.upsert({
-      where: { code: 'JFK' },
-      update: {},
-      create: {
-        code: 'JFK',
-        name: 'John F. Kennedy International Airport',
-        city: 'New York',
-        country: 'USA',
-        timezone: 'America/New_York',
-      },
-    }),
-    prisma.airport.upsert({
-      where: { code: 'LAX' },
-      update: {},
-      create: {
-        code: 'LAX',
-        name: 'Los Angeles International Airport',
-        city: 'Los Angeles',
-        country: 'USA',
-        timezone: 'America/Los_Angeles',
-      },
-    }),
-    prisma.airport.upsert({
-      where: { code: 'LHR' },
-      update: {},
-      create: {
-        code: 'LHR',
-        name: 'London Heathrow Airport',
-        city: 'London',
-        country: 'UK',
-        timezone: 'Europe/London',
-      },
-    }),
-    prisma.airport.upsert({
-      where: { code: 'CDG' },
-      update: {},
-      create: {
-        code: 'CDG',
-        name: 'Charles de Gaulle Airport',
-        city: 'Paris',
-        country: 'France',
-        timezone: 'Europe/Paris',
-      },
-    }),
-    prisma.airport.upsert({
-      where: { code: 'SIN' },
-      update: {},
-      create: {
-        code: 'SIN',
-        name: 'Singapore Changi Airport',
-        city: 'Singapore',
-        country: 'Singapore',
-        timezone: 'Asia/Singapore',
-      },
-    }),
-  ]);
+  // Clear existing data
+  await clearDatabase();
 
-  console.log('Created airports:', airports.map((a) => a.code).join(', '));
+  // Seed airports
+  const airports = await seedIndianAirports();
 
-  // Create flights
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(10, 0, 0, 0);
+  // Seed flights
+  await seedFlights(airports);
 
-  const dayAfterTomorrow = new Date(tomorrow);
-  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
+  // Seed a test user
+  await seedTestUser();
 
-  const jfkAirport = airports.find((a) => a.code === 'JFK');
-  const laxAirport = airports.find((a) => a.code === 'LAX');
-  const lhrAirport = airports.find((a) => a.code === 'LHR');
-  const cdgAirport = airports.find((a) => a.code === 'CDG');
-  const sinAirport = airports.find((a) => a.code === 'SIN');
+  console.log('Database seeding completed successfully!');
+}
 
-  if (!jfkAirport || !laxAirport || !lhrAirport || !cdgAirport || !sinAirport) {
-    throw new Error('Could not find all required airports');
+/**
+ * Clear existing data from the database
+ */
+async function clearDatabase() {
+  console.log('Clearing existing data...');
+  await prisma.seatLock.deleteMany({});
+  await prisma.booking.deleteMany({});
+  await prisma.seat.deleteMany({});
+  await prisma.flight.deleteMany({});
+  await prisma.airport.deleteMany({});
+  // await prisma.userProfile.deleteMany({});
+  console.log('Database cleared!');
+}
+
+/**
+ * Seed Indian airports data
+ * @returns Map of airport codes to their database IDs
+ */
+async function seedIndianAirports() {
+  console.log('Seeding Indian airports...');
+
+  const airportsData = [
+    {
+      code: 'DEL',
+      name: 'Indira Gandhi International Airport',
+      city: 'Delhi',
+      country: 'India',
+      timezone: 'Asia/Kolkata',
+    },
+    {
+      code: 'BOM',
+      name: 'Chhatrapati Shivaji Maharaj International Airport',
+      city: 'Mumbai',
+      country: 'India',
+      timezone: 'Asia/Kolkata',
+    },
+    {
+      code: 'MAA',
+      name: 'Chennai International Airport',
+      city: 'Chennai',
+      country: 'India',
+      timezone: 'Asia/Kolkata',
+    },
+    {
+      code: 'BLR',
+      name: 'Kempegowda International Airport',
+      city: 'Bangalore',
+      country: 'India',
+      timezone: 'Asia/Kolkata',
+    },
+    {
+      code: 'HYD',
+      name: 'Rajiv Gandhi International Airport',
+      city: 'Hyderabad',
+      country: 'India',
+      timezone: 'Asia/Kolkata',
+    },
+    {
+      code: 'CCU',
+      name: 'Netaji Subhas Chandra Bose International Airport',
+      city: 'Kolkata',
+      country: 'India',
+      timezone: 'Asia/Kolkata',
+    },
+    {
+      code: 'COK',
+      name: 'Cochin International Airport',
+      city: 'Kochi',
+      country: 'India',
+      timezone: 'Asia/Kolkata',
+    },
+    {
+      code: 'AMD',
+      name: 'Sardar Vallabhbhai Patel International Airport',
+      city: 'Ahmedabad',
+      country: 'India',
+      timezone: 'Asia/Kolkata',
+    },
+    {
+      code: 'GOI',
+      name: 'Dabolim Airport',
+      city: 'Goa',
+      country: 'India',
+      timezone: 'Asia/Kolkata',
+    },
+    {
+      code: 'JAI',
+      name: 'Jaipur International Airport',
+      city: 'Jaipur',
+      country: 'India',
+      timezone: 'Asia/Kolkata',
+    },
+  ];
+
+  const airportMap = new Map<string, string>();
+
+  for (const airportData of airportsData) {
+    const airport = await prisma.airport.create({
+      data: airportData,
+    });
+    airportMap.set(airport.code, airport.id);
   }
 
-  // Create flights
-  const flights = await Promise.all([
-    // JFK to LAX
-    prisma.flight.create({
-      data: {
-        flightNumber: 'AA100',
-        airline: 'American Airlines',
-        aircraftType: 'Boeing 787',
-        departureTime: new Date(tomorrow.setHours(8, 0, 0, 0)),
-        arrivalTime: new Date(tomorrow.setHours(11, 30, 0, 0)),
-        duration: 330, // 5.5 hours in minutes
-        originId: jfkAirport.id,
-        destinationId: laxAirport.id,
-        basePrice: 299.99,
-        totalSeats: {
-          [CabinClass.Economy]: 150,
-          [CabinClass.PremiumEconomy]: 50,
-          [CabinClass.Business]: 30,
-          [CabinClass.First]: 10,
-        },
-        status: FlightStatus.Scheduled,
-      },
-    }),
-    // LAX to JFK
-    prisma.flight.create({
-      data: {
-        flightNumber: 'AA101',
-        airline: 'American Airlines',
-        aircraftType: 'Boeing 787',
-        departureTime: new Date(tomorrow.setHours(14, 0, 0, 0)),
-        arrivalTime: new Date(tomorrow.setHours(22, 30, 0, 0)),
-        duration: 330, // 5.5 hours in minutes
-        originId: laxAirport.id,
-        destinationId: jfkAirport.id,
-        basePrice: 329.99,
-        totalSeats: {
-          [CabinClass.Economy]: 150,
-          [CabinClass.PremiumEconomy]: 50,
-          [CabinClass.Business]: 30,
-          [CabinClass.First]: 10,
-        },
-        status: FlightStatus.Scheduled,
-      },
-    }),
-    // JFK to LHR
-    prisma.flight.create({
-      data: {
-        flightNumber: 'BA178',
-        airline: 'British Airways',
-        aircraftType: 'Airbus A380',
-        departureTime: new Date(tomorrow.setHours(19, 0, 0, 0)),
-        arrivalTime: new Date(dayAfterTomorrow.setHours(7, 30, 0, 0)),
-        duration: 420, // 7 hours in minutes
-        originId: jfkAirport.id,
-        destinationId: lhrAirport.id,
-        basePrice: 599.99,
-        totalSeats: {
-          [CabinClass.Economy]: 200,
-          [CabinClass.PremiumEconomy]: 60,
-          [CabinClass.Business]: 40,
-          [CabinClass.First]: 15,
-        },
-        status: FlightStatus.Scheduled,
-      },
-    }),
-  ]);
+  console.log(`Seeded ${airportsData.length} Indian airports!`);
+  return airportMap;
+}
 
-  console.log(
-    'Created flights:',
-    flights.map((f) => f.flightNumber).join(', '),
-  );
+/**
+ * Seed flights data
+ * @param airports Map of airport codes to their database IDs
+ */
+async function seedFlights(airports: Map<string, string>) {
+  console.log('Seeding flights between Indian cities...');
 
-  // Create seats for each flight
-  for (const flight of flights) {
-    const cabinClasses = Object.keys(flight.totalSeats) as CabinClass[];
+  // Define the routes (domestic Indian routes)
+  const routes = [
+    { origin: 'DEL', destination: 'BOM' },
+    { origin: 'BOM', destination: 'DEL' },
+    { origin: 'DEL', destination: 'BLR' },
+    { origin: 'BLR', destination: 'DEL' },
+    { origin: 'BOM', destination: 'MAA' },
+    { origin: 'MAA', destination: 'BOM' },
+    { origin: 'BLR', destination: 'HYD' },
+    { origin: 'HYD', destination: 'BLR' },
+    { origin: 'DEL', destination: 'CCU' },
+    { origin: 'CCU', destination: 'DEL' },
+    { origin: 'BOM', destination: 'GOI' },
+    { origin: 'GOI', destination: 'BOM' },
+    { origin: 'DEL', destination: 'JAI' },
+    { origin: 'JAI', destination: 'DEL' },
+    { origin: 'BLR', destination: 'COK' },
+    { origin: 'COK', destination: 'BLR' },
+    { origin: 'MAA', destination: 'CCU' },
+    { origin: 'CCU', destination: 'MAA' },
+    { origin: 'HYD', destination: 'AMD' },
+    { origin: 'AMD', destination: 'HYD' },
+  ];
 
-    for (const cabin of cabinClasses) {
-      const seatCount = flight.totalSeats[cabin];
-      const rows = Math.ceil(seatCount / 6); // Assuming 6 seats per row
+  // Define Indian airlines
+  const airlines = [
+    'Air India',
+    'IndiGo',
+    'SpiceJet',
+    'Vistara',
+    'Air Asia India',
+    'Go First',
+    'Alliance Air',
+    'Star Air',
+    'TruJet',
+    'Akasa Air',
+  ];
 
-      const seatLetters = ['A', 'B', 'C', 'D', 'E', 'F'];
-      const seats = [];
+  // Define aircraft types
+  const aircraftTypes = [
+    'Airbus A320',
+    'Airbus A321',
+    'Boeing 737',
+    'Boeing 777',
+    'Boeing 787 Dreamliner',
+    'ATR 72',
+    'Bombardier Q400',
+    'Airbus A350',
+    'Embraer E190',
+    'Airbus A330',
+  ];
 
-      for (let row = 1; row <= rows; row++) {
-        for (let seatIndex = 0; seatIndex < 6; seatIndex++) {
-          if (seats.length < seatCount) {
-            const seatNumber = `${row}${seatLetters[seatIndex]}`;
-            seats.push({
-              flightId: flight.id,
-              seatNumber,
-              cabin,
-              position: { row, column: seatLetters[seatIndex] },
-              isBlocked: false,
-            });
+  // Reduce the number of days for faster seeding
+  const daysToSeed = 7; // Reduced from 30 to 7 days
+  console.log(`Creating flights for the next ${daysToSeed} days...`);
+
+  // Create flights for the next daysToSeed days
+  const today = new Date();
+  let seededFlights = 0;
+  let flightBatch = [];
+
+  for (let day = 0; day < daysToSeed; day++) {
+    const currentDate = new Date(today);
+    currentDate.setDate(currentDate.getDate() + day);
+    console.log(
+      `Seeding flights for day ${
+        day + 1
+      }/${daysToSeed}: ${currentDate.toDateString()}`,
+    );
+
+    for (const route of routes) {
+      // Skip some days randomly to create more realistic schedule
+      if (Math.random() < 0.2) continue;
+
+      // Create 1-3 flights per route per day (reduced from 1-5)
+      const flightsPerDay = Math.floor(Math.random() * 3) + 1;
+
+      for (let i = 0; i < flightsPerDay; i++) {
+        const airline = airlines[Math.floor(Math.random() * airlines.length)];
+        const aircraftType =
+          aircraftTypes[Math.floor(Math.random() * aircraftTypes.length)];
+
+        // Create random departure time
+        const departureTime = new Date(currentDate);
+        departureTime.setHours(5 + Math.floor(Math.random() * 18)); // Between 5 AM and 11 PM
+        departureTime.setMinutes(Math.random() < 0.5 ? 0 : 30); // Either on the hour or half past
+
+        // Calculate flight duration based on route (in minutes)
+        let duration = 0;
+        if (route.origin === 'DEL' && route.destination === 'BOM') {
+          duration = 130; // 2h 10m Delhi to Mumbai
+        } else if (route.origin === 'DEL' && route.destination === 'BLR') {
+          duration = 170; // 2h 50m Delhi to Bangalore
+        } else if (route.origin === 'BOM' && route.destination === 'MAA') {
+          duration = 135; // 2h 15m Mumbai to Chennai
+        } else if (route.origin === 'BLR' && route.destination === 'HYD') {
+          duration = 65; // 1h 5m Bangalore to Hyderabad
+        } else if (route.origin === 'DEL' && route.destination === 'CCU') {
+          duration = 145; // 2h 25m Delhi to Kolkata
+        } else if (route.origin === 'BOM' && route.destination === 'GOI') {
+          duration = 70; // 1h 10m Mumbai to Goa
+        } else if (route.origin === 'DEL' && route.destination === 'JAI') {
+          duration = 55; // 55m Delhi to Jaipur
+        } else if (route.origin === 'BLR' && route.destination === 'COK') {
+          duration = 70; // 1h 10m Bangalore to Kochi
+        } else if (route.origin === 'MAA' && route.destination === 'CCU') {
+          duration = 150; // 2h 30m Chennai to Kolkata
+        } else if (route.origin === 'HYD' && route.destination === 'AMD') {
+          duration = 130; // 2h 10m Hyderabad to Ahmedabad
+        } else {
+          // For routes in the opposite direction, use same duration
+          const reverseRoute = routes.find(
+            (r) =>
+              r.origin === route.destination && r.destination === route.origin,
+          );
+          if (reverseRoute) {
+            const routeKey = `${reverseRoute.origin}-${reverseRoute.destination}`;
+            duration = 120; // Default 2 hours if not specifically defined
           }
         }
-      }
 
-      await prisma.seat.createMany({
-        data: seats,
-        skipDuplicates: true,
-      });
+        // Calculate arrival time
+        const arrivalTime = new Date(departureTime);
+        arrivalTime.setMinutes(arrivalTime.getMinutes() + duration);
+
+        // Set base price with some randomness (Indian domestic flight prices in USD)
+        const basePrice = Math.floor(50 + Math.random() * 150);
+
+        // Set seat capacity based on aircraft type
+        let totalSeats: Record<string, number> = {};
+
+        // Different aircraft types have different seating configurations
+        if (aircraftType.includes('A350') || aircraftType.includes('777')) {
+          totalSeats = {
+            [CabinClass.Economy]: 250,
+            [CabinClass.PremiumEconomy]: 50,
+            [CabinClass.Business]: 30,
+            [CabinClass.First]: 8,
+          };
+        } else if (
+          aircraftType.includes('787') ||
+          aircraftType.includes('A330')
+        ) {
+          totalSeats = {
+            [CabinClass.Economy]: 200,
+            [CabinClass.PremiumEconomy]: 35,
+            [CabinClass.Business]: 20,
+            [CabinClass.First]: 6,
+          };
+        } else if (
+          aircraftType.includes('A321') ||
+          aircraftType.includes('737')
+        ) {
+          totalSeats = {
+            [CabinClass.Economy]: 160,
+            [CabinClass.PremiumEconomy]: 25,
+            [CabinClass.Business]: 12,
+            [CabinClass.First]: 0, // No first class on A321/737
+          };
+        } else if (aircraftType.includes('A320')) {
+          totalSeats = {
+            [CabinClass.Economy]: 150,
+            [CabinClass.PremiumEconomy]: 18,
+            [CabinClass.Business]: 8,
+            [CabinClass.First]: 0, // No first class on A320
+          };
+        } else {
+          // Smaller aircraft like ATR 72 or Q400
+          totalSeats = {
+            [CabinClass.Economy]: 70,
+            [CabinClass.PremiumEconomy]: 0,
+            [CabinClass.Business]: 6,
+            [CabinClass.First]: 0, // No premium options on regional aircraft
+          };
+        }
+
+        // Generate flight number - Using Indian airline codes
+        let airlinePrefix;
+        if (airline === 'Air India') airlinePrefix = 'AI';
+        else if (airline === 'IndiGo') airlinePrefix = '6E';
+        else if (airline === 'SpiceJet') airlinePrefix = 'SG';
+        else if (airline === 'Vistara') airlinePrefix = 'UK';
+        else if (airline === 'Air Asia India') airlinePrefix = 'I5';
+        else if (airline === 'Go First') airlinePrefix = 'G8';
+        else if (airline === 'Alliance Air') airlinePrefix = '9I';
+        else if (airline === 'Star Air') airlinePrefix = 'OG';
+        else if (airline === 'TruJet') airlinePrefix = '2T';
+        else if (airline === 'Akasa Air') airlinePrefix = 'QP';
+        else airlinePrefix = 'IN';
+
+        const flightNumber = `${airlinePrefix}${
+          100 + Math.floor(Math.random() * 900)
+        }`;
+
+        // Add to flight batch instead of creating immediately
+        flightBatch.push({
+          flightNumber,
+          airline,
+          aircraftType,
+          departureTime,
+          arrivalTime,
+          duration,
+          originId: airports.get(route.origin)!,
+          destinationId: airports.get(route.destination)!,
+          basePrice,
+          totalSeats,
+          status: 'Scheduled',
+        });
+
+        // Process in batches of 20 flights
+        if (flightBatch.length >= 20) {
+          await processBatchOfFlights(flightBatch);
+          seededFlights += flightBatch.length;
+          console.log(`Progress: ${seededFlights} flights processed`);
+          flightBatch = [];
+        }
+      }
     }
   }
 
-  console.log('Created seats for all flights');
-  console.log('Database seeding completed');
+  // Process any remaining flights
+  if (flightBatch.length > 0) {
+    await processBatchOfFlights(flightBatch);
+    seededFlights += flightBatch.length;
+  }
+
+  console.log(`Seeded ${seededFlights} flights with seats!`);
+}
+
+/**
+ * Process a batch of flights and create seats for them
+ * @param flightBatch Array of flight data to create
+ */
+async function processBatchOfFlights(flightBatch: any[]) {
+  const createdFlights = [];
+
+  // Create flights one by one (we need the IDs for creating seats)
+  for (const flightData of flightBatch) {
+    const totalSeats = { ...flightData.totalSeats };
+
+    // Create the flight with all required fields
+    const flight = await prisma.flight.create({
+      data: flightData,
+    });
+
+    createdFlights.push({ id: flight.id, totalSeats });
+  }
+
+  // Create seats for each flight in sequence to avoid memory issues
+  for (const { id, totalSeats } of createdFlights) {
+    await createSeatsForFlight(id, totalSeats);
+  }
+}
+
+/**
+ * Create seat records for a flight
+ * @param flightId The flight ID
+ * @param totalSeats The total seats configuration
+ */
+async function createSeatsForFlight(
+  flightId: string,
+  totalSeats: Record<string, number>,
+) {
+  // Define seat configurations per cabin
+  const seatsByClass: Record<CabinClass, { rows: number; cols: string[] }> = {
+    [CabinClass.First]: {
+      rows: Math.ceil(totalSeats[CabinClass.First] / 2),
+      cols: ['A', 'D'],
+    },
+    [CabinClass.Business]: {
+      rows: Math.ceil(totalSeats[CabinClass.Business] / 4),
+      cols: ['A', 'D', 'G', 'K'],
+    },
+    [CabinClass.PremiumEconomy]: {
+      rows: Math.ceil(totalSeats[CabinClass.PremiumEconomy] / 6),
+      cols: ['A', 'C', 'D', 'G', 'H', 'K'],
+    },
+    [CabinClass.Economy]: {
+      rows: Math.ceil(totalSeats[CabinClass.Economy] / 9),
+      cols: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'K'],
+    },
+  };
+
+  // Generate seats for each cabin class
+  const seatData = [];
+
+  // First class seats
+  if (totalSeats[CabinClass.First] > 0) {
+    const config = seatsByClass[CabinClass.First];
+    for (let row = 1; row <= config.rows; row++) {
+      for (const col of config.cols) {
+        seatData.push({
+          flightId,
+          seatNumber: `1${row}${col}`,
+          cabin: CabinClass.First,
+          position: { row, col },
+          isBlocked: false,
+        });
+      }
+    }
+  }
+
+  // Business class seats
+  if (totalSeats[CabinClass.Business] > 0) {
+    const config = seatsByClass[CabinClass.Business];
+    for (let row = 1; row <= config.rows; row++) {
+      for (const col of config.cols) {
+        seatData.push({
+          flightId,
+          seatNumber: `2${row}${col}`,
+          cabin: CabinClass.Business,
+          position: { row, col },
+          isBlocked: false,
+        });
+      }
+    }
+  }
+
+  // Premium Economy seats
+  if (totalSeats[CabinClass.PremiumEconomy] > 0) {
+    const config = seatsByClass[CabinClass.PremiumEconomy];
+    for (let row = 1; row <= config.rows; row++) {
+      for (const col of config.cols) {
+        seatData.push({
+          flightId,
+          seatNumber: `3${row}${col}`,
+          cabin: CabinClass.PremiumEconomy,
+          position: { row, col },
+          isBlocked: false,
+        });
+      }
+    }
+  }
+
+  // Economy seats
+  if (totalSeats[CabinClass.Economy] > 0) {
+    const config = seatsByClass[CabinClass.Economy];
+    for (let row = 1; row <= config.rows; row++) {
+      for (const col of config.cols) {
+        seatData.push({
+          flightId,
+          seatNumber: `4${row}${col}`,
+          cabin: CabinClass.Economy,
+          position: { row, col },
+          isBlocked: Math.random() < 0.05, // 5% chance of a seat being blocked
+        });
+      }
+    }
+  }
+
+  // Create seats in batches
+  for (let i = 0; i < seatData.length; i += 100) {
+    const batch = seatData.slice(i, i + 100);
+    await prisma.seat.createMany({
+      data: batch,
+    });
+  }
+}
+
+/**
+ * Seed a test user profile with Indian context
+ */
+async function seedTestUser() {
+  console.log('Seeding test user with Indian context...');
+
+  await prisma.userProfile.create({
+    data: {
+      userId: 'test-user-id', // This would match a Supabase Auth user ID
+      fullName: 'Rajesh Kumar',
+      email: 'rajesh.kumar@example.com',
+      phone: '+919876543210',
+      address: '42 Banjara Hills Road, Hyderabad, Telangana, India',
+      birthdate: new Date('1988-04-15'),
+      paymentInfo: {
+        cards: [
+          {
+            lastFour: '5678',
+            expiryMonth: 9,
+            expiryYear: 2026,
+            holderName: 'Rajesh Kumar',
+          },
+        ],
+      },
+      preferences: {
+        seatPreference: 'aisle',
+        mealPreference: 'hindu-vegetarian',
+        frequentFlyerNumbers: {
+          airIndia: 'AI5436789',
+          vistara: 'UK7654321',
+          indiGo: '6E9876543',
+        },
+      },
+    },
+  });
+
+  console.log('Test user seeded!');
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('Error seeding database:', e);
     process.exit(1);
   })
   .finally(async () => {
