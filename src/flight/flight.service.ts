@@ -8,11 +8,12 @@ import {
   PaginatedFlightResponseDto,
 } from './dto/search-flight.dto';
 import { Flight } from './entities/flight.entity';
+import { flightPricingConfig } from '../config/flight.config';
 
 @Injectable()
 export class FlightService {
   private readonly logger = new Logger(FlightService.name);
-  private readonly CACHE_TTL = 300; // 5 minutes in seconds
+  private readonly CACHE_TTL = flightPricingConfig.cacheTTL;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -247,22 +248,16 @@ export class FlightService {
       // Calculate occupancy rate
       const occupancyRate = bookedSeats / totalSeats;
 
-      // Dynamic pricing factors
-      const basePriceMultiplier = {
-        [CabinClass.Economy]: 1,
-        [CabinClass.PremiumEconomy]: 1.5,
-        [CabinClass.Business]: 2.5,
-        [CabinClass.First]: 4,
-      };
+      // Get base price multiplier from configuration
+      const { basePriceMultiplier, occupancyMultipliers } = flightPricingConfig;
 
-      // Increase price based on occupancy
+      // Determine dynamic multiplier based on occupancy
       let dynamicMultiplier = 1;
-      if (occupancyRate > 0.9) {
-        dynamicMultiplier = 1.5; // 50% increase for >90% occupancy
-      } else if (occupancyRate > 0.7) {
-        dynamicMultiplier = 1.3; // 30% increase for >70% occupancy
-      } else if (occupancyRate > 0.5) {
-        dynamicMultiplier = 1.1; // 10% increase for >50% occupancy
+      for (const { threshold, multiplier } of occupancyMultipliers) {
+        if (occupancyRate > threshold) {
+          dynamicMultiplier = multiplier;
+          break;
+        }
       }
 
       return Math.round(
