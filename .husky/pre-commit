@@ -1,6 +1,7 @@
 #!/bin/sh
 . "$HOME/.nvm/nvm.sh"  # if using nvm, adjust the path as needed
 
-npx run build
-npx run test
-npx run lint
+npm run build
+npm run test
+npm run test:e2e
+npm run lint

@@ -10,4 +10,4 @@ import { envSchema } from './env.schema';
     }),
   ],
 })
-export class ConfigModule {} 
+export class ConfigModule {}

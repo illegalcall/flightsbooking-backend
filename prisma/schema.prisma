@@ -1,0 +1,161 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Profile model
+model UserProfile {
+  id          String    @id @default(uuid())
+  userId      String    @unique // Reference to Supabase Auth user ID
+  fullName    String
+  email       String    @unique
+  phone       String?
+  address     String?
+  birthdate   DateTime?
+  paymentInfo Json?     // Securely stored payment information
+  preferences Json?     // Travel preferences (seat, meal, frequent flyer numbers)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relation to bookings
+  bookings    Booking[]
+}
+
+// Define CabinClass enum for flight seating options
+enum CabinClass {
+  Economy
+  PremiumEconomy
+  Business
+  First
+}
+
+// Define FlightStatus enum for tracking flight state
+enum FlightStatus {
+  Scheduled
+  Boarding
+  InAir
+  Landed
+  Delayed
+  Cancelled
+}
+
+// Define SeatLockStatus enum for seat lock states
+enum SeatLockStatus {
+  Active
+  Released
+  Expired
+}
+
+// Airport model for origin and destination data
+model Airport {
+  id        String   @id @default(uuid())
+  code      String   @unique // IATA airport code (e.g., JFK, LAX)
+  name      String
+  city      String
+  country   String
+  timezone  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations to flights
+  departures Flight[] @relation("departure")
+  arrivals   Flight[] @relation("arrival")
+}
+
+// Flight model
+model Flight {
+  id            String       @id @default(uuid())
+  flightNumber  String
+  airline       String
+  aircraftType  String
+  departureTime DateTime
+  arrivalTime   DateTime
+  duration      Int          // Duration in minutes
+  originId      String
+  destinationId String
+  basePrice     Float        // Base price in the lowest cabin class
+  totalSeats    Json         // JSON field with capacity breakdown by cabin class
+  status        FlightStatus @default(Scheduled)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  // Relations
+  origin      Airport   @relation("departure", fields: [originId], references: [id])
+  destination Airport   @relation("arrival", fields: [destinationId], references: [id])
+  bookings    Booking[]
+  seats       Seat[]
+  seatLocks   SeatLock[]
+}
+
+// Seat model for mapping physical seats to flights
+model Seat {
+  id         String     @id @default(uuid())
+  flightId   String
+  seatNumber String
+  cabin      CabinClass
+  position   Json       // JSON with row, column information
+  isBlocked  Boolean    @default(false) // For seats that are blocked for operational reasons
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  // Relations
+  flight     Flight     @relation(fields: [flightId], references: [id])
+  bookings   Booking[]  @relation("bookedSeats")
+  seatLocks  SeatLock[]
+
+  @@unique([flightId, seatNumber])
+}
+
+// Booking status enum
+enum BookingStatus {
+  Pending
+  AwaitingPayment
+  Confirmed
+  Cancelled
+}
+
+// Booking model
+model Booking {
+  id                String        @id @default(uuid())
+  bookingReference  String        @unique
+  userProfileId     String
+  flightId          String
+  passengerDetails  Json          // Passenger information including names, ages, etc.
+  selectedCabin     CabinClass
+  status            BookingStatus @default(Pending)
+  totalAmount       Float
+  paymentInfo       Json?         // Payment transaction references
+  cancellationReason String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  confirmedAt       DateTime?
+  cancelledAt       DateTime?
+
+  // Relations
+  userProfile  UserProfile @relation(fields: [userProfileId], references: [id])
+  flight       Flight      @relation(fields: [flightId], references: [id])
+  bookedSeats  Seat[]      @relation("bookedSeats")
+}
+
+// Seat locking system to prevent double bookings
+model SeatLock {
+  id          String         @id @default(uuid())
+  flightId    String
+  seatId      String
+  sessionId   String         // User session identifier
+  expiresAt   DateTime       // Lock expiration time (default 15 minutes)
+  status      SeatLockStatus @default(Active)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  flight      Flight         @relation(fields: [flightId], references: [id])
+  seat        Seat           @relation(fields: [seatId], references: [id])
+} 
