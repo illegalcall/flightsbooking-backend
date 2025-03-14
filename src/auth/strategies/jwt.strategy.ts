@@ -20,16 +20,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: any) {
     try {
-      // Verify the token with Supabase
-      const token = ExtractJwt.fromAuthHeaderAsBearerToken()({
-        headers: { authorization: `Bearer ${payload.sub}` },
-      } as any);
-
-      if (!token) {
-        throw new UnauthorizedException('Invalid token');
-      }
-
-      const user = await this.supabaseService.verifyToken(token);
+      // Use the payload directly for verification
+      const user = await this.supabaseService.verifyToken(payload);
 
       if (!user) {
         throw new UnauthorizedException('User not found');
