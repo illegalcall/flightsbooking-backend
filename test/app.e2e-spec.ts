@@ -26,7 +26,8 @@ describe('AppController (e2e)', () => {
     process.env.PORT = '3000';
     process.env.API_PREFIX = 'api';
     process.env.API_VERSION = '1';
-    process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/flightsbooking_test';
+    process.env.DATABASE_URL =
+      'postgresql://postgres:postgres@localhost:5432/flightsbooking_test';
     process.env.JWT_SECRET = 'test-secret';
     process.env.JWT_EXPIRATION = '1h';
     process.env.STRIPE_SECRET_KEY = 'test_stripe_key';

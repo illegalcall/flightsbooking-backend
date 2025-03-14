@@ -91,7 +91,9 @@ describe('UserProfileService', () => {
       prismaError['code'] = 'P2002';
       mockPrismaService.userProfile.create.mockRejectedValue(prismaError);
 
-      await expect(service.create(createDto)).rejects.toThrow(ConflictException);
+      await expect(service.create(createDto)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
@@ -107,7 +109,9 @@ describe('UserProfileService', () => {
 
   describe('findOne', () => {
     it('should return a user profile by id', async () => {
-      mockPrismaService.userProfile.findUnique.mockResolvedValue(mockUserProfile);
+      mockPrismaService.userProfile.findUnique.mockResolvedValue(
+        mockUserProfile,
+      );
 
       const result = await service.findOne(mockUserProfile.id);
       expect(result).toEqual(mockUserProfile);
@@ -119,13 +123,17 @@ describe('UserProfileService', () => {
     it('should throw NotFoundException if user profile not found', async () => {
       mockPrismaService.userProfile.findUnique.mockResolvedValue(null);
 
-      await expect(service.findOne('non-existent-id')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('non-existent-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('findByUserId', () => {
     it('should return a user profile by userId', async () => {
-      mockPrismaService.userProfile.findUnique.mockResolvedValue(mockUserProfile);
+      mockPrismaService.userProfile.findUnique.mockResolvedValue(
+        mockUserProfile,
+      );
 
       const result = await service.findByUserId(mockUserProfile.userId);
       expect(result).toEqual(mockUserProfile);
@@ -137,7 +145,9 @@ describe('UserProfileService', () => {
     it('should throw NotFoundException if user profile not found', async () => {
       mockPrismaService.userProfile.findUnique.mockResolvedValue(null);
 
-      await expect(service.findByUserId('non-existent-userId')).rejects.toThrow(NotFoundException);
+      await expect(service.findByUserId('non-existent-userId')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -147,7 +157,9 @@ describe('UserProfileService', () => {
         fullName: 'Updated Name',
       };
 
-      mockPrismaService.userProfile.findUnique.mockResolvedValue(mockUserProfile);
+      mockPrismaService.userProfile.findUnique.mockResolvedValue(
+        mockUserProfile,
+      );
       mockPrismaService.userProfile.update.mockResolvedValue({
         ...mockUserProfile,
         fullName: 'Updated Name',
@@ -168,7 +180,9 @@ describe('UserProfileService', () => {
 
       mockPrismaService.userProfile.findUnique.mockResolvedValue(null);
 
-      await expect(service.update('non-existent-id', updateDto)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.update('non-existent-id', updateDto),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ConflictException if email is already in use', async () => {
@@ -176,19 +190,25 @@ describe('UserProfileService', () => {
         email: 'already-used@example.com',
       };
 
-      mockPrismaService.userProfile.findUnique.mockResolvedValue(mockUserProfile);
-      
+      mockPrismaService.userProfile.findUnique.mockResolvedValue(
+        mockUserProfile,
+      );
+
       const prismaError = new Error('Unique constraint failed');
       prismaError['code'] = 'P2002';
       mockPrismaService.userProfile.update.mockRejectedValue(prismaError);
 
-      await expect(service.update(mockUserProfile.id, updateDto)).rejects.toThrow(ConflictException);
+      await expect(
+        service.update(mockUserProfile.id, updateDto),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
   describe('remove', () => {
     it('should delete a user profile', async () => {
-      mockPrismaService.userProfile.findUnique.mockResolvedValue(mockUserProfile);
+      mockPrismaService.userProfile.findUnique.mockResolvedValue(
+        mockUserProfile,
+      );
       mockPrismaService.userProfile.delete.mockResolvedValue(mockUserProfile);
 
       const result = await service.remove(mockUserProfile.id);
@@ -201,7 +221,9 @@ describe('UserProfileService', () => {
     it('should throw NotFoundException if user profile not found', async () => {
       mockPrismaService.userProfile.findUnique.mockResolvedValue(null);
 
-      await expect(service.remove('non-existent-id')).rejects.toThrow(NotFoundException);
+      await expect(service.remove('non-existent-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -216,10 +238,14 @@ describe('UserProfileService', () => {
         },
       ];
 
-      mockPrismaService.userProfile.findUnique.mockResolvedValue(mockUserProfile);
+      mockPrismaService.userProfile.findUnique.mockResolvedValue(
+        mockUserProfile,
+      );
       mockPrismaService.booking.findMany.mockResolvedValue(mockBookings);
 
-      const result = await service.getUserBookings(mockUserProfile.id, { status: 'UPCOMING' });
+      const result = await service.getUserBookings(mockUserProfile.id, {
+        status: 'UPCOMING',
+      });
       expect(result).toEqual(mockBookings);
       expect(mockPrismaService.booking.findMany).toHaveBeenCalled();
     });
@@ -227,7 +253,9 @@ describe('UserProfileService', () => {
     it('should throw NotFoundException if user profile not found', async () => {
       mockPrismaService.userProfile.findUnique.mockResolvedValue(null);
 
-      await expect(service.getUserBookings('non-existent-id')).rejects.toThrow(NotFoundException);
+      await expect(service.getUserBookings('non-existent-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
-}); 
+});
