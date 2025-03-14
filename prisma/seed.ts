@@ -369,24 +369,69 @@ async function seedFlights(airports: Map<string, string>) {
  * @param flightBatch Array of flight data to create
  */
 async function processBatchOfFlights(flightBatch: any[]) {
-  const createdFlights = [];
+  console.log(`Processing batch of ${flightBatch.length} flights...`);
 
-  // Create flights one by one (we need the IDs for creating seats)
-  for (const flightData of flightBatch) {
-    const totalSeats = { ...flightData.totalSeats };
+  const createdFlights: { id: string; totalSeats: Record<string, number> }[] =
+    [];
 
-    // Create the flight with all required fields
-    const flight = await prisma.flight.create({
-      data: flightData,
+  try {
+    // Create all flights in one batch operation
+    const flights = await prisma.flight.createMany({
+      data: flightBatch.map(({ totalSeats, ...flightData }) => flightData),
+      skipDuplicates: true, // Skip if flight number already exists
     });
 
-    createdFlights.push({ id: flight.id, totalSeats });
+    console.log(`Successfully created ${flights.count} flights in batch`);
+
+    // Fetch the created flights to get their IDs
+    const createdFlightRecords = await prisma.flight.findMany({
+      where: {
+        flightNumber: {
+          in: flightBatch.map((f) => f.flightNumber),
+        },
+      },
+      select: {
+        id: true,
+        flightNumber: true,
+      },
+    });
+
+    // Map the flight records with their totalSeats configuration
+    for (const record of createdFlightRecords) {
+      const originalFlight = flightBatch.find(
+        (f) => f.flightNumber === record.flightNumber,
+      );
+      if (originalFlight) {
+        createdFlights.push({
+          id: record.id,
+          totalSeats: originalFlight.totalSeats,
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Failed to create flights batch:', error);
+    // Log detailed error for each flight in the batch
+    flightBatch.forEach((flight) => {
+      console.error(
+        `Flight ${flight.flightNumber}: ${flight.airline} from ${flight.originId} to ${flight.destinationId}`,
+      );
+    });
+    throw new Error('Flight creation failed. See logs for details.');
   }
 
   // Create seats for each flight in sequence to avoid memory issues
   for (const { id, totalSeats } of createdFlights) {
-    await createSeatsForFlight(id, totalSeats);
+    try {
+      await createSeatsForFlight(id, totalSeats);
+    } catch (error) {
+      console.error(`Failed to create seats for flight ${id}:`, error);
+      // Continue with next flight even if seat creation fails for one
+    }
   }
+
+  console.log(
+    `Completed processing batch of ${createdFlights.length} flights with seats`,
+  );
 }
 
 /**
