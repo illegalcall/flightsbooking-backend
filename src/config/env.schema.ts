@@ -2,7 +2,9 @@ import { z } from 'zod';
 
 export const envSchema = z.object({
   // Application
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  NODE_ENV: z
+    .enum(['development', 'production', 'test'])
+    .default('development'),
   PORT: z.string().transform(Number).default('3000'),
   API_PREFIX: z.string().default('api'),
   API_VERSION: z.string().transform(Number).default('1'),
@@ -23,4 +25,4 @@ export const envSchema = z.object({
   SUPABASE_KEY: z.string(),
 });
 
-export type Env = z.infer<typeof envSchema>; 
+export type Env = z.infer<typeof envSchema>;
