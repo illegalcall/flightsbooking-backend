@@ -15,11 +15,16 @@ import {
   ApiResponse,
   ApiParam,
   ApiBearerAuth,
+  ApiOkResponse,
+  getSchemaPath,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FlightService } from './flight.service';
-import { SearchFlightDto } from './dto/search-flight.dto';
-import { Flight } from '@prisma/client';
+import {
+  SearchFlightDto,
+  PaginatedFlightResponseDto,
+} from './dto/search-flight.dto';
+import { Flight } from './entities/flight.entity';
 
 @ApiTags('flights')
 @Controller({
@@ -32,14 +37,45 @@ export class FlightController {
   constructor(private readonly flightService: FlightService) {}
 
   @Post('search')
-  @ApiOperation({ summary: 'Search for available flights' })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns a list of flights matching search criteria',
+  @ApiOperation({
+    summary: 'Search for available flights',
+    description:
+      'Search for flights with pagination, filtering, and dynamic pricing',
+  })
+  @ApiOkResponse({
+    description: 'Returns a paginated list of flights matching search criteria',
+    type: PaginatedFlightResponseDto,
+    schema: {
+      allOf: [
+        { $ref: getSchemaPath(PaginatedFlightResponseDto) },
+        {
+          properties: {
+            data: {
+              type: 'array',
+              items: {
+                allOf: [
+                  { $ref: getSchemaPath(Flight) },
+                  {
+                    type: 'object',
+                    properties: {
+                      calculatedPrice: {
+                        type: 'number',
+                        description:
+                          'Dynamically calculated price based on availability',
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    },
   })
   async searchFlights(
     @Body(ValidationPipe) searchFlightDto: SearchFlightDto,
-  ): Promise<Flight[]> {
+  ): Promise<PaginatedFlightResponseDto> {
     this.logger.log(
       `Searching flights with criteria: ${JSON.stringify(searchFlightDto)}`,
     );
@@ -51,9 +87,9 @@ export class FlightController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a flight by ID' })
   @ApiParam({ name: 'id', description: 'Flight ID' })
-  @ApiResponse({
-    status: 200,
+  @ApiOkResponse({
     description: 'Returns the flight with the specified ID',
+    type: Flight,
   })
   @ApiResponse({ status: 404, description: 'Flight not found' })
   async getFlight(@Param('id') id: string): Promise<Flight> {

@@ -98,12 +98,15 @@ describe('FlightController (e2e)', () => {
         .send(searchPayload)
         .expect(201); // NestJS POST returns 201 Created by default
 
-      // Validate response
-      expect(response.body).toBeInstanceOf(Array);
+      // Validate response structure
+      expect(response.body).toHaveProperty('data');
+      expect(response.body).toHaveProperty('total');
+      expect(response.body).toHaveProperty('hasMore');
+      expect(Array.isArray(response.body.data)).toBe(true);
 
       // If flights are returned, check their structure
-      if (response.body.length > 0) {
-        const flight = response.body[0];
+      if (response.body.data.length > 0) {
+        const flight = response.body.data[0];
         expect(flight).toHaveProperty('id');
         expect(flight).toHaveProperty('flightNumber');
         expect(flight).toHaveProperty('airline');
@@ -111,6 +114,7 @@ describe('FlightController (e2e)', () => {
         expect(flight).toHaveProperty('arrivalTime');
         expect(flight).toHaveProperty('origin');
         expect(flight).toHaveProperty('destination');
+        expect(flight).toHaveProperty('calculatedPrice');
         expect(flight.origin.code).toBe('JFK');
         expect(flight.destination.code).toBe('LAX');
       }
@@ -132,8 +136,14 @@ describe('FlightController (e2e)', () => {
         .send(searchPayload)
         .expect(201); // NestJS POST returns 201 Created by default
 
-      // Validate response
-      expect(response.body).toBeInstanceOf(Array);
+      // Validate response structure
+      expect(response.body).toHaveProperty('data');
+      expect(response.body).toHaveProperty('total');
+      expect(response.body).toHaveProperty('hasMore');
+      expect(Array.isArray(response.body.data)).toBe(true);
+
+      // Validate that we got some results
+      expect(response.body.total).toBeGreaterThanOrEqual(0);
     });
 
     it('should validate search parameters', async () => {

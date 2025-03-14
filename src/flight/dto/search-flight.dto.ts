@@ -8,9 +8,10 @@ import {
   Min,
   ValidateNested,
   IsNotEmpty,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CabinClass } from '@prisma/client';
+import { CabinClass, Flight } from '@prisma/client';
 
 /**
  * Price range for flight search
@@ -87,4 +88,46 @@ export class SearchFlightDto {
   @IsOptional()
   @IsString()
   airline?: string;
+
+  @ApiPropertyOptional({
+    description: 'Cursor for pagination (flight ID)',
+    example: 'abc123',
+  })
+  @IsOptional()
+  @IsString()
+  cursor?: string;
+
+  @ApiPropertyOptional({
+    description: 'Number of results per page (default: 10, max: 50)',
+    example: 10,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number = 10;
+}
+
+/**
+ * Response DTO for paginated flight search results
+ */
+export class PaginatedFlightResponseDto {
+  @ApiProperty({ description: 'List of flights matching search criteria' })
+  data: Flight[];
+
+  @ApiProperty({
+    description: 'Total number of flights matching search criteria',
+  })
+  total: number;
+
+  @ApiPropertyOptional({
+    description: 'Cursor for the next page of results',
+    example: 'abc123',
+  })
+  nextCursor?: string;
+
+  @ApiPropertyOptional({
+    description: 'Whether there are more results available',
+  })
+  hasMore: boolean;
 }
