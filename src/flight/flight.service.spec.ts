@@ -132,7 +132,7 @@ describe('FlightService', () => {
     it('should return flights matching search criteria', async () => {
       const mockFlights = [mockFlight];
       const mockFlightsWithPrice = [mockFlightWithCalculatedPrice];
-            
+
       jest
         .spyOn(prismaService.flight, 'findMany')
         .mockResolvedValue(mockFlights);
