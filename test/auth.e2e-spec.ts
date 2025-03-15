@@ -22,6 +22,34 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthModule } from '../src/auth/auth.module';
 import { AuthService } from '../src/auth/auth.service';
 import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard';
+import { PaymentService } from '../src/payment/payment.service';
+import { PaymentResponseDto } from '../src/payment/dto/payment-response.dto';
+
+// Create a mock Payment Service for testing
+class MockPaymentService {
+  createPaymentIntent() {
+    return Promise.resolve(
+      new PaymentResponseDto({
+        success: true,
+        clientSecret: 'test_client_secret',
+        paymentIntentId: 'test_payment_intent_id',
+        amount: 100,
+        currency: 'usd',
+        bookingId: 'test-booking-id',
+        message: 'Payment intent created successfully',
+      }),
+    );
+  }
+
+  handleStripeWebhook() {
+    return Promise.resolve(
+      new PaymentResponseDto({
+        success: true,
+        message: 'Webhook received',
+      }),
+    );
+  }
+}
 
 // Create a mock JWT Auth Guard for testing
 class MockJwtAuthGuard implements CanActivate {
@@ -285,6 +313,8 @@ describe('Authentication (e2e)', () => {
       .useValue(mockAuthService)
       .overrideGuard(JwtAuthGuard)
       .useClass(MockJwtAuthGuard)
+      .overrideProvider(PaymentService)
+      .useClass(MockPaymentService)
       .compile();
 
     app = moduleFixture.createNestApplication({

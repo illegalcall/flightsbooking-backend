@@ -4,15 +4,31 @@ import { ConfigService } from '@nestjs/config';
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Env } from './config/env.schema';
+import * as bodyParser from 'body-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+    // Enable raw body access for Stripe webhooks
+    bodyParser: false,
   });
 
   // Get config service
   const configService = app.get(ConfigService<Env>);
   const logger = new Logger('Bootstrap');
+
+  // Configure body parsers
+  app.use(
+    bodyParser.json({
+      verify: (req: any, res, buf) => {
+        // Make raw body available for Stripe webhook verification
+        if (req.originalUrl && req.originalUrl.includes('/payments/webhook')) {
+          req.rawBody = buf;
+        }
+      },
+    }),
+  );
+  app.use(bodyParser.urlencoded({ extended: true }));
 
   // Enable validation pipe
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
