@@ -90,12 +90,13 @@ export class SearchFlightDto {
   airline?: string;
 
   @ApiPropertyOptional({
-    description: 'Cursor for pagination (flight ID)',
-    example: 'abc123',
+    description: 'Page number for pagination (starting from 1)',
+    example: 1,
   })
   @IsOptional()
-  @IsString()
-  cursor?: string;
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
 
   @ApiPropertyOptional({
     description: 'Number of results per page (default: 10, max: 50)',
@@ -118,16 +119,23 @@ export class PaginatedFlightResponseDto {
   @ApiProperty({
     description: 'Total number of flights matching search criteria',
   })
-  total: number;
+  totalCount: number;
 
-  @ApiPropertyOptional({
-    description: 'Cursor for the next page of results',
-    example: 'abc123',
+  @ApiProperty({
+    description: 'Current page number',
+    example: 1,
   })
-  nextCursor?: string;
+  page: number;
 
-  @ApiPropertyOptional({
-    description: 'Whether there are more results available',
+  @ApiProperty({
+    description: 'Number of items per page',
+    example: 10,
   })
-  hasMore: boolean;
+  pageSize: number;
+
+  @ApiProperty({
+    description: 'Total number of pages',
+    example: 5,
+  })
+  pageCount: number;
 }

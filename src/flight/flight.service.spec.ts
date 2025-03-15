@@ -5,11 +5,13 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { NotFoundException } from '@nestjs/common';
 import { CabinClass, Flight, FlightStatus } from '@prisma/client';
 import { SearchFlightDto } from './dto/search-flight.dto';
+import { BookingService } from '../booking/booking.service';
 
 describe('FlightService', () => {
   let service: FlightService;
   let prismaService: PrismaService;
   let cacheManager: { get: jest.Mock; set: jest.Mock };
+  let bookingService: { getCabinSeatsWithMultipliers: jest.Mock };
 
   const mockFlight = {
     id: '1',
@@ -56,12 +58,27 @@ describe('FlightService', () => {
   const mockFlightWithCalculatedPrice = {
     ...mockFlight,
     calculatedPrice: 100,
+    cabinSeatsWithMultipliers: {
+      Economy: { seats: 150, multiplier: 1.0 },
+      PremiumEconomy: { seats: 50, multiplier: 1.5 },
+      Business: { seats: 30, multiplier: 2.5 },
+      First: { seats: 10, multiplier: 4.0 },
+    },
   };
 
   beforeEach(async () => {
     cacheManager = {
       get: jest.fn(),
       set: jest.fn(),
+    };
+
+    bookingService = {
+      getCabinSeatsWithMultipliers: jest.fn().mockResolvedValue({
+        Economy: { seats: 150, multiplier: 1.0 },
+        PremiumEconomy: { seats: 50, multiplier: 1.5 },
+        Business: { seats: 30, multiplier: 2.5 },
+        First: { seats: 10, multiplier: 4.0 },
+      }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -87,6 +104,10 @@ describe('FlightService', () => {
           provide: CACHE_MANAGER,
           useValue: cacheManager,
         },
+        {
+          provide: BookingService,
+          useValue: bookingService,
+        },
       ],
     }).compile();
 
@@ -105,7 +126,10 @@ describe('FlightService', () => {
         .mockResolvedValue(mockFlight);
 
       const result = await service.findOne('1');
-      expect(result).toEqual(mockFlight);
+      expect(result).toEqual({
+        ...mockFlight,
+        cabinSeatsWithMultipliers: expect.any(Object),
+      });
       expect(prismaService.flight.findUnique).toHaveBeenCalledWith({
         where: { id: '1' },
         include: {
@@ -113,6 +137,9 @@ describe('FlightService', () => {
           destination: true,
         },
       });
+      expect(bookingService.getCabinSeatsWithMultipliers).toHaveBeenCalledWith(
+        '1',
+      );
     });
 
     it('should throw NotFoundException when flight does not exist', async () => {
@@ -143,10 +170,16 @@ describe('FlightService', () => {
       const result = await service.search(searchDto);
 
       expect(result).toEqual({
-        data: mockFlightsWithPrice,
-        total: 1,
-        hasMore: false,
-        nextCursor: undefined,
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            id: mockFlightWithCalculatedPrice.id,
+            calculatedPrice: mockFlightWithCalculatedPrice.calculatedPrice,
+          }),
+        ]),
+        totalCount: 1,
+        page: 1,
+        pageSize: 10,
+        pageCount: 1,
       });
       expect(prismaService.flight.findMany).toHaveBeenCalled();
       expect(cacheManager.set).toHaveBeenCalled();
@@ -178,9 +211,10 @@ describe('FlightService', () => {
     it('should return cached results if available', async () => {
       const cachedResult = {
         data: [mockFlightWithCalculatedPrice],
-        total: 1,
-        hasMore: false,
-        nextCursor: undefined,
+        totalCount: 1,
+        page: 1,
+        pageSize: 10,
+        pageCount: 1,
       };
 
       jest.spyOn(cacheManager, 'get').mockResolvedValue(cachedResult);
@@ -191,17 +225,14 @@ describe('FlightService', () => {
       expect(prismaService.flight.findMany).not.toHaveBeenCalled();
     });
 
-    it('should handle cursor-based pagination', async () => {
-      const searchDtoWithCursor = {
+    it('should handle page-based pagination', async () => {
+      const searchDtoWithPage = {
         ...searchDto,
-        cursor: mockFlight.id,
+        page: 1,
         limit: 10,
       };
 
       const mockFlights = [mockFlight, { ...mockFlight, id: '2' }];
-      jest
-        .spyOn(prismaService.flight, 'findUnique')
-        .mockResolvedValue(mockFlight);
       jest
         .spyOn(prismaService.flight, 'findMany')
         .mockResolvedValue(mockFlights);
@@ -209,14 +240,17 @@ describe('FlightService', () => {
       jest.spyOn(cacheManager, 'get').mockResolvedValue(null);
       jest.spyOn(prismaService.booking, 'count').mockResolvedValue(0);
 
-      const result = await service.search(searchDtoWithCursor);
+      const result = await service.search(searchDtoWithPage);
 
-      expect(result.hasMore).toBe(false);
+      expect(result.pageCount).toBe(1);
+      expect(result.totalCount).toBe(2);
       expect(result.data.length).toBe(2);
-      expect(prismaService.flight.findUnique).toHaveBeenCalledWith({
-        where: { id: mockFlight.id },
-        select: { departureTime: true },
-      });
+      expect(prismaService.flight.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 0,
+          take: 10,
+        }),
+      );
     });
   });
 });

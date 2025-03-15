@@ -19,10 +19,17 @@ export const envSchema = z.object({
   // Stripe
   STRIPE_SECRET_KEY: z.string(),
   STRIPE_WEBHOOK_SECRET: z.string(),
+  DEFAULT_CURRENCY: z.string().default('usd'),
+
+  // Booking
+  SEAT_LOCK_EXPIRY_MINUTES: z.string().transform(Number).default('15'),
 
   // Supabase
   SUPABASE_URL: z.string(),
   SUPABASE_KEY: z.string(),
+
+  // Webhook configurations
+  WEBHOOK_PATHS: z.string(),
 });
 
 export type Env = z.infer<typeof envSchema>;
