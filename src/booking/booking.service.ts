@@ -10,15 +10,77 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { BookingResponseDto } from './dto/booking-response.dto';
 import { randomBytes } from 'crypto';
 import { ConfigService } from '@nestjs/config';
+import {
+  CabinClassMultipliers,
+  CabinClassSeats,
+} from './dto/cabin-class-config.dto';
+import { cabinClassConfig } from '../config/cabin-class.config';
 
 @Injectable()
 export class BookingService {
   private readonly logger = new Logger(BookingService.name);
+  private readonly priceMultipliers: CabinClassMultipliers;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
-  ) {}
+  ) {
+    // Initialize price multipliers from configuration or use defaults
+    this.priceMultipliers = this.initPriceMultipliers();
+  }
+
+  /**
+   * Initialize price multipliers from configuration or use defaults
+   * @returns Object with cabin class multipliers
+   */
+  private initPriceMultipliers(): CabinClassMultipliers {
+    // Try to get multipliers from configuration
+    const configMultipliers = this.configService.get<CabinClassMultipliers>(
+      'CABIN_PRICE_MULTIPLIERS',
+    );
+
+    // Default multipliers if not found in configuration
+    const defaultMultipliers = cabinClassConfig.priceMultipliers;
+
+    // Return config values or defaults
+    return configMultipliers || defaultMultipliers;
+  }
+
+  /**
+   * Gets the cabin class multipliers
+   * @returns The current price multipliers for each cabin class
+   */
+  getPriceMultipliers(): CabinClassMultipliers {
+    return { ...this.priceMultipliers };
+  }
+
+  /**
+   * Retrieves total seats count by cabin class with their price multipliers
+   * @param flightId Flight ID to get seats for
+   * @returns Total seats by cabin class with price multipliers
+   */
+  async getCabinSeatsWithMultipliers(
+    flightId: string,
+  ): Promise<CabinClassSeats> {
+    const seats = await this.prisma.seat.groupBy({
+      by: ['cabin'],
+      where: { flightId },
+      _count: { id: true },
+    });
+
+    const result: CabinClassSeats = {} as CabinClassSeats;
+
+    // Populate result with all cabin classes and their multipliers
+    Object.values(CabinClass).forEach((cabinClass) => {
+      const cabinSeats = seats.find((s) => s.cabin === cabinClass);
+      result[cabinClass] = {
+        seats: cabinSeats ? cabinSeats._count.id : 0,
+        multiplier: this.priceMultipliers[cabinClass],
+      };
+    });
+
+    return result;
+  }
 
   /**
    * Generates a unique booking reference code
@@ -122,16 +184,8 @@ export class BookingService {
       throw new NotFoundException(`Flight with ID ${flightId} not found`);
     }
 
-    // Cabin class price multipliers (these would come from configuration in a real application)
-    const priceMultipliers = {
-      Economy: 1.0,
-      PremiumEconomy: 1.5,
-      Business: 2.5,
-      First: 4.0,
-    };
-
-    // Calculate total price based on base price, seat count, and cabin class
-    const multiplier = priceMultipliers[selectedCabin];
+    // Use the price multiplier from the instance property
+    const multiplier = this.priceMultipliers[selectedCabin as CabinClass];
     const totalPrice = flight.basePrice * multiplier * seatCount;
 
     return parseFloat(totalPrice.toFixed(2)); // Ensure 2 decimal places

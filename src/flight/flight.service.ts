@@ -9,6 +9,8 @@ import {
 } from './dto/search-flight.dto';
 import { Flight } from './entities/flight.entity';
 import { flightPricingConfig } from '../config/flight.config';
+import { BookingService } from '../booking/booking.service';
+import { CabinClassSeats } from '../booking/dto/cabin-class-config.dto';
 
 @Injectable()
 export class FlightService {
@@ -18,7 +20,32 @@ export class FlightService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private readonly bookingService: BookingService,
   ) {}
+
+  /**
+   * Transforms the flight's totalSeats to include multipliers
+   * @param flight The flight entity to transform
+   * @returns The flight with enhanced totalSeats property
+   */
+  private async enhanceFlightWithMultipliers(flight: Flight): Promise<Flight> {
+    try {
+      // Get cabin seats with multipliers
+      const cabinSeatsWithMultipliers =
+        await this.bookingService.getCabinSeatsWithMultipliers(flight.id);
+
+      // Add the property to the flight object
+      flight.cabinSeatsWithMultipliers = cabinSeatsWithMultipliers;
+
+      return flight;
+    } catch (error) {
+      this.logger.error(
+        `Error enhancing flight with multipliers: ${error.message}`,
+        error.stack,
+      );
+      return flight; // Return the original flight if enhancement fails
+    }
+  }
 
   /**
    * Find a single flight by ID
@@ -39,7 +66,8 @@ export class FlightService {
         throw new NotFoundException(`Flight with ID ${id} not found`);
       }
 
-      return flight as Flight;
+      // Enhance flight with cabin class multipliers
+      return await this.enhanceFlightWithMultipliers(flight as Flight);
     } catch (error) {
       this.logger.error(`Error finding flight with ID ${id}:`, error);
       throw error;
@@ -48,8 +76,8 @@ export class FlightService {
 
   /**
    * Search for flights based on search criteria with pagination
-   * @param searchFlightDto The search parameters
-   * @returns Paginated array of matching flights
+   * @param searchFlightDto Search criteria and pagination options
+   * @returns Flights matching the search criteria
    */
   async search(
     searchFlightDto: SearchFlightDto,
@@ -60,149 +88,112 @@ export class FlightService {
         destinationCode,
         departureDate,
         returnDate,
-        cabinClass,
         passengers,
-        priceRange,
-        airline,
-        cursor,
+        cabinClass,
+        page = 1,
         limit = 10,
       } = searchFlightDto;
 
-      // Try to get results from cache
+      // Generate a cache key
       const cacheKey = this.generateCacheKey(searchFlightDto);
+
+      // Try to get from cache first
       const cachedResult =
         await this.cacheManager.get<PaginatedFlightResponseDto>(cacheKey);
-
       if (cachedResult) {
-        this.logger.log('Returning cached flight search results');
+        this.logger.log('Returning flights from cache');
         return cachedResult;
       }
 
-      // Build the base query
-      const filters: Prisma.FlightWhereInput[] = [
-        {
-          origin: { code: originCode },
-          destination: { code: destinationCode },
+      // Prepare filter conditions
+      const departureStartDate = new Date(departureDate);
+      departureStartDate.setHours(0, 0, 0, 0);
+
+      const departureEndDate = new Date(departureDate);
+      departureEndDate.setHours(23, 59, 59, 999);
+
+      // Build query conditions for outbound flight
+      const outboundConditions: Prisma.FlightWhereInput = {
+        departureTime: {
+          gte: departureStartDate,
+          lte: departureEndDate,
         },
-      ];
+        origin: {
+          code: originCode,
+        },
+        destination: {
+          code: destinationCode,
+        },
+        status: 'Scheduled',
+      };
 
-      // Add date filter if provided
-      if (departureDate) {
-        const startDate = new Date(departureDate);
-        const endDate = new Date(departureDate);
-        endDate.setHours(23, 59, 59, 999);
+      // Calculate offset for pagination
+      const skip = (page - 1) * limit;
 
-        filters.push({
-          departureTime: {
-            gte: startDate,
-            lte: endDate,
+      // Execute the query
+      const [totalCount, flights] = await Promise.all([
+        this.prisma.flight.count({
+          where: outboundConditions,
+        }),
+        this.prisma.flight.findMany({
+          where: outboundConditions,
+          include: {
+            origin: true,
+            destination: true,
           },
-        });
-      }
+          skip,
+          take: limit,
+        }),
+      ]);
 
-      // Add airline filter if provided
-      if (airline) {
-        filters.push({ airline });
-      }
+      // Convert the results
+      let outboundFlights = flights as Flight[];
 
-      // Add price range filter if provided
-      if (priceRange?.min !== undefined && priceRange?.max !== undefined) {
-        filters.push({
-          basePrice: {
-            gte: priceRange.min,
-            lte: priceRange.max,
-          },
-        });
-      }
-
-      // Add cursor-based pagination
-      if (cursor) {
-        const cursorFlight = await this.prisma.flight.findUnique({
-          where: { id: cursor },
-          select: { departureTime: true },
-        });
-
-        if (cursorFlight) {
-          filters.push({
-            OR: [
-              {
-                departureTime: {
-                  gt: cursorFlight.departureTime,
-                },
-              },
-              {
-                AND: [
-                  { departureTime: cursorFlight.departureTime },
-                  { id: { gt: cursor } },
-                ],
-              },
-            ],
-          });
-        }
-      }
-
-      // Get total count for pagination
-      const totalCount = await this.prisma.flight.count({
-        where: {
-          AND: filters,
-        },
-      });
-
-      // Execute the main query
-      const flights = await this.prisma.flight.findMany({
-        where: {
-          AND: filters,
-        },
-        include: {
-          origin: true,
-          destination: true,
-        },
-        orderBy: [{ departureTime: 'asc' }, { id: 'asc' }],
-        take: limit + 1, // Take one extra to determine if there are more results
-      });
-
-      // Determine if there are more results and get the next cursor
-      const hasMore = flights.length > limit;
-      const data = flights.slice(0, limit);
-      const nextCursor = hasMore ? flights[limit - 1].id : undefined;
-
-      // Filter flights that have enough available seats and calculate dynamic pricing
-      let availableFlights = data as Flight[];
+      // Filter by availability if cabin class and passengers are specified
       if (cabinClass && passengers) {
-        availableFlights = await this.filterFlightsByAvailability(
-          data as Flight[],
+        outboundFlights = await this.filterFlightsByAvailability(
+          outboundFlights,
           cabinClass,
           passengers,
         );
       }
 
-      // Calculate dynamic prices based on availability
-      const flightsWithDynamicPricing = await Promise.all(
-        availableFlights.map(async (flight) => {
-          const dynamicPrice = await this.calculateDynamicPrice(
+      // Calculate dynamic prices for each flight
+      const flightsWithPrices = await Promise.all(
+        outboundFlights.map(async (flight) => {
+          // Calculate dynamic price
+          const calculatedPrice = await this.calculateDynamicPrice(
             flight,
             cabinClass,
           );
-          return {
-            ...flight,
-            calculatedPrice: dynamicPrice,
-          };
+
+          // Add multipliers to the flight
+          const enhancedFlight = await this.enhanceFlightWithMultipliers(
+            flight,
+          );
+
+          // Add calculated price to the flight object
+          enhancedFlight.calculatedPrice = calculatedPrice;
+
+          return enhancedFlight;
         }),
       );
 
+      // Prepare the response
       const result: PaginatedFlightResponseDto = {
-        data: flightsWithDynamicPricing,
-        total: totalCount,
-        hasMore,
-        nextCursor,
+        totalCount,
+        page,
+        pageSize: limit,
+        pageCount: Math.ceil(totalCount / limit),
+        data: flightsWithPrices,
       };
 
-      // Cache the results
+      // Cache the result
       await this.cacheManager.set(cacheKey, result, this.CACHE_TTL);
 
       return result;
     } catch (error) {
-      this.logger.error('Error searching flights:', error);
+      this.logger.error(`Error searching flights:`, error);
       throw error;
     }
   }

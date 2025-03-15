@@ -100,8 +100,10 @@ describe('FlightController (e2e)', () => {
 
       // Validate response structure
       expect(response.body).toHaveProperty('data');
-      expect(response.body).toHaveProperty('total');
-      expect(response.body).toHaveProperty('hasMore');
+      expect(response.body).toHaveProperty('totalCount');
+      expect(response.body).toHaveProperty('page');
+      expect(response.body).toHaveProperty('pageSize');
+      expect(response.body).toHaveProperty('pageCount');
       expect(Array.isArray(response.body.data)).toBe(true);
 
       // If flights are returned, check their structure
@@ -115,6 +117,7 @@ describe('FlightController (e2e)', () => {
         expect(flight).toHaveProperty('origin');
         expect(flight).toHaveProperty('destination');
         expect(flight).toHaveProperty('calculatedPrice');
+        expect(flight).toHaveProperty('cabinSeatsWithMultipliers');
         expect(flight.origin.code).toBe('JFK');
         expect(flight.destination.code).toBe('LAX');
       }
@@ -138,12 +141,14 @@ describe('FlightController (e2e)', () => {
 
       // Validate response structure
       expect(response.body).toHaveProperty('data');
-      expect(response.body).toHaveProperty('total');
-      expect(response.body).toHaveProperty('hasMore');
+      expect(response.body).toHaveProperty('totalCount');
+      expect(response.body).toHaveProperty('page');
+      expect(response.body).toHaveProperty('pageSize');
+      expect(response.body).toHaveProperty('pageCount');
       expect(Array.isArray(response.body.data)).toBe(true);
 
       // Validate that we got some results
-      expect(response.body.total).toBeGreaterThanOrEqual(0);
+      expect(response.body.totalCount).toBeGreaterThanOrEqual(0);
     });
 
     it('should validate search parameters', async () => {
@@ -205,6 +210,7 @@ describe('FlightController (e2e)', () => {
       expect(response.body).toHaveProperty('airline');
       expect(response.body).toHaveProperty('origin');
       expect(response.body).toHaveProperty('destination');
+      expect(response.body).toHaveProperty('cabinSeatsWithMultipliers');
     });
 
     it('should require authentication', async () => {
