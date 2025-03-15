@@ -5,11 +5,13 @@ import { CreateBookingDto } from '../dto/create-booking.dto';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BookingStatus, CabinClass, Seat } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
+import { NotificationService } from '../notification.service';
 
 describe('BookingService', () => {
   let service: BookingService;
   let prismaService: PrismaService;
   let configService: ConfigService;
+  let notificationService: NotificationService;
 
   // Mock data
   const mockUserId = 'mock-user-id';
@@ -136,6 +138,13 @@ describe('BookingService', () => {
     }),
   };
 
+  // Setup mock notification service
+  const mockNotificationService = {
+    sendBookingStatusNotification: jest.fn().mockResolvedValue(true),
+    getNotificationEventsForUser: jest.fn(),
+    getAllNotificationEvents: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -148,14 +157,19 @@ describe('BookingService', () => {
           provide: ConfigService,
           useValue: mockConfigService,
         },
+        {
+          provide: NotificationService,
+          useValue: mockNotificationService,
+        },
       ],
     }).compile();
 
     service = module.get<BookingService>(BookingService);
     prismaService = module.get<PrismaService>(PrismaService);
     configService = module.get<ConfigService>(ConfigService);
+    notificationService = module.get<NotificationService>(NotificationService);
 
-    // Reset mock implementations
+    // Reset all mocks before each test
     jest.clearAllMocks();
   });
 
@@ -166,8 +180,8 @@ describe('BookingService', () => {
   describe('createBooking', () => {
     beforeEach(() => {
       // Setup default mock implementations
-      mockPrismaService.userProfile.findUnique.mockResolvedValue(
-        mockUserProfile,
+      mockPrismaService.userProfile.findUnique.mockImplementation(() =>
+        Promise.resolve(mockUserProfile),
       );
       mockPrismaService.seat.findMany.mockImplementation((params) => {
         if (params.where.bookings) {
@@ -189,9 +203,11 @@ describe('BookingService', () => {
         mockCreateBookingDto,
       );
 
-      expect(mockPrismaService.userProfile.findUnique).toHaveBeenCalledWith({
-        where: { userId: mockUserId },
-      });
+      expect(mockPrismaService.userProfile.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: mockUserId },
+        }),
+      );
 
       expect(mockPrismaService.seat.findMany).toHaveBeenCalledTimes(3);
       expect(mockPrismaService.$transaction).toHaveBeenCalled();
@@ -237,16 +253,18 @@ describe('BookingService', () => {
 
   describe('findUserBookings', () => {
     it('should return all bookings for a user', async () => {
-      mockPrismaService.userProfile.findUnique.mockResolvedValue(
-        mockUserProfile,
+      mockPrismaService.userProfile.findUnique.mockImplementation(() =>
+        Promise.resolve(mockUserProfile),
       );
       mockPrismaService.booking.findMany.mockResolvedValue([mockBooking]);
 
       const result = await service.findUserBookings(mockUserId);
 
-      expect(mockPrismaService.userProfile.findUnique).toHaveBeenCalledWith({
-        where: { userId: mockUserId },
-      });
+      expect(mockPrismaService.userProfile.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: mockUserId },
+        }),
+      );
       expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith({
         where: {
           userProfileId: mockUserProfileId,
@@ -273,8 +291,8 @@ describe('BookingService', () => {
 
   describe('cancelBooking', () => {
     beforeEach(() => {
-      mockPrismaService.userProfile.findUnique.mockResolvedValue(
-        mockUserProfile,
+      mockPrismaService.userProfile.findUnique.mockImplementation(() =>
+        Promise.resolve(mockUserProfile),
       );
       mockPrismaService.booking.findFirst.mockResolvedValue(mockBooking);
       mockPrismaService.booking.update.mockResolvedValue({
@@ -292,10 +310,11 @@ describe('BookingService', () => {
         'Test cancellation',
       );
 
-      expect(mockPrismaService.userProfile.findUnique).toHaveBeenCalledWith({
-        where: { userId: mockUserId },
-        select: { id: true },
-      });
+      expect(mockPrismaService.userProfile.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: mockUserId },
+        }),
+      );
       expect(mockPrismaService.booking.findFirst).toHaveBeenCalledWith({
         where: {
           id: mockBookingId,

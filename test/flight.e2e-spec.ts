@@ -207,6 +207,7 @@ describe('FlightController (e2e)', () => {
         .get(`/v1/flights/${flightId}`)
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
+      console.log('🚀 ~ it ~ response:', response);
 
       // Validate response
       expect(response.body).toHaveProperty('id', flightId);

@@ -24,6 +24,8 @@ import { CreateBookingDto, BookingResponseDto } from './dto';
 import { BookingExpirationService } from './booking-expiration.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { ETicketService } from './e-ticket.service';
+import { EmailService } from './email.service';
 
 @ApiTags('bookings')
 @Controller({
@@ -38,6 +40,8 @@ export class BookingController {
   constructor(
     private readonly bookingService: BookingService,
     private readonly bookingExpirationService: BookingExpirationService,
+    private readonly eTicketService: ETicketService,
+    private readonly emailService: EmailService,
   ) {}
 
   @Post()
@@ -165,6 +169,79 @@ export class BookingController {
         `Error in cleanupExpiredBookings: ${error.message}`,
         error.stack,
       );
+      throw error;
+    }
+  }
+
+  @Post(':id/e-ticket')
+  @ApiOperation({ summary: 'Generate and send e-ticket for booking' })
+  @ApiParam({ name: 'id', description: 'Booking ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'E-ticket generated and sent successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Booking not found' })
+  async generateAndSendETicket(
+    @Request() req,
+    @Param('id') id: string,
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const userId = req.user.sub;
+
+      // Get user profile
+      const userProfile = await this.bookingService.getUserProfile(userId);
+
+      // Check booking exists and belongs to user
+      const booking = await this.bookingService.findBookingById(id);
+
+      if (booking.userProfileId !== userProfile.id) {
+        throw new BadRequestException(
+          'You do not have permission to access this booking',
+        );
+      }
+
+      // Generate PDF
+      const pdfPath = await this.eTicketService.generateETicket(id);
+
+      // Send email with PDF
+      const mainPassenger = booking.passengerDetails[0];
+      const emailSuccess = await this.emailService.sendETicket(
+        userProfile.email,
+        booking.bookingReference,
+        pdfPath,
+        mainPassenger.fullName,
+      );
+
+      if (emailSuccess) {
+        return {
+          success: true,
+          message: 'E-ticket generated and sent successfully',
+        };
+      } else {
+        return {
+          success: false,
+          message: 'E-ticket generated but could not be sent by email',
+        };
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error generating e-ticket: ${error.message}`,
+        error.stack,
+      );
+
+      if (error.message.includes('Cannot generate e-ticket')) {
+        throw new BadRequestException(error.message);
+      }
+
       throw error;
     }
   }

@@ -15,6 +15,7 @@ import {
   CabinClassSeats,
 } from './dto/cabin-class-config.dto';
 import { cabinClassConfig } from '../config/cabin-class.config';
+import { NotificationService } from './notification.service';
 
 @Injectable()
 export class BookingService {
@@ -24,6 +25,7 @@ export class BookingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly notificationService: NotificationService,
   ) {
     // Initialize price multipliers from configuration or use defaults
     this.priceMultipliers = this.initPriceMultipliers();
@@ -285,6 +287,23 @@ export class BookingService {
         (seat) => seat.seatNumber,
       );
 
+      // Send notification about the booking creation
+      this.notificationService
+        .sendBookingStatusNotification(
+          userId,
+          result.id,
+          result.bookingReference,
+          result.status,
+          userProfile.email,
+          userProfile.fullName,
+        )
+        .catch((error) => {
+          this.logger.error(
+            `Failed to send booking creation notification: ${error.message}`,
+            error.stack,
+          );
+        });
+
       // Return the booking details
       return BookingResponseDto.fromEntity(result, bookedSeatNumbers);
     } catch (error) {
@@ -385,7 +404,7 @@ export class BookingService {
       // Verify the booking exists and belongs to the user
       const userProfile = await this.prisma.userProfile.findUnique({
         where: { userId },
-        select: { id: true },
+        select: { id: true, email: true, fullName: true },
       });
 
       if (!userProfile) {
@@ -448,10 +467,128 @@ export class BookingService {
       const bookedSeatNumbers = updatedBooking.bookedSeats.map(
         (seat) => seat.seatNumber,
       );
+
+      // Send notification about the booking cancellation
+      this.notificationService
+        .sendBookingStatusNotification(
+          userId,
+          updatedBooking.id,
+          updatedBooking.bookingReference,
+          updatedBooking.status,
+          userProfile.email,
+          userProfile.fullName,
+        )
+        .catch((error) => {
+          this.logger.error(
+            `Failed to send booking cancellation notification: ${error.message}`,
+            error.stack,
+          );
+        });
+
       return BookingResponseDto.fromEntity(updatedBooking, bookedSeatNumbers);
     } catch (error) {
       this.logger.error(
         `Error cancelling booking: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Gets a user profile by user ID
+   * @param userId User ID (from auth)
+   * @returns User profile
+   */
+  async getUserProfile(userId: string) {
+    const userProfile = await this.prisma.userProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!userProfile) {
+      throw new NotFoundException(`User profile not found for user ${userId}`);
+    }
+
+    return userProfile;
+  }
+
+  /**
+   * Updates a booking status and sends a notification
+   * @param bookingId Booking ID
+   * @param newStatus New booking status
+   * @param reason Optional reason for the status change
+   * @returns Updated booking
+   */
+  async updateBookingStatus(
+    bookingId: string,
+    newStatus: BookingStatus,
+    reason?: string,
+  ): Promise<BookingResponseDto> {
+    try {
+      // Find the booking
+      const booking = await this.prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: {
+          bookedSeats: true,
+          userProfile: true,
+        },
+      });
+
+      if (!booking) {
+        throw new NotFoundException(`Booking with ID ${bookingId} not found`);
+      }
+
+      // Only update if the status is different
+      if (booking.status === newStatus) {
+        const bookedSeatNumbers = booking.bookedSeats.map(
+          (seat) => seat.seatNumber,
+        );
+        return BookingResponseDto.fromEntity(booking, bookedSeatNumbers);
+      }
+
+      // Update the status
+      const updatedBooking = await this.prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+          status: newStatus,
+          ...(newStatus === BookingStatus.Confirmed && {
+            confirmedAt: new Date(),
+          }),
+          ...(newStatus === BookingStatus.Cancelled && {
+            cancelledAt: new Date(),
+            cancellationReason: reason || 'Status updated by system',
+          }),
+        },
+        include: {
+          bookedSeats: true,
+        },
+      });
+
+      // Send notification about the status change
+      const userProfile = booking.userProfile;
+      this.notificationService
+        .sendBookingStatusNotification(
+          userProfile.userId,
+          updatedBooking.id,
+          updatedBooking.bookingReference,
+          updatedBooking.status,
+          userProfile.email,
+          userProfile.fullName,
+        )
+        .catch((error) => {
+          this.logger.error(
+            `Failed to send booking status update notification: ${error.message}`,
+            error.stack,
+          );
+        });
+
+      const bookedSeatNumbers = updatedBooking.bookedSeats.map(
+        (seat) => seat.seatNumber,
+      );
+      return BookingResponseDto.fromEntity(updatedBooking, bookedSeatNumbers);
+    } catch (error) {
+      this.logger.error(
+        `Error updating booking status: ${error.message}`,
         error.stack,
       );
       throw error;

@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { Env } from '../../config/env.schema';
+import { Request } from 'express';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -15,13 +16,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: configService.get('JWT_SECRET'),
+      passReqToCallback: true,
     });
   }
 
-  async validate(payload: any) {
+  async validate(request: Request, payload: any) {
     try {
-      // Use the payload directly for verification
-      const user = await this.supabaseService.verifyToken(payload);
+      // Extract raw token from authorization header
+      const token = request.headers.authorization?.split(' ')[1];
+
+      if (!token) {
+        throw new UnauthorizedException('No token provided');
+      }
+
+      // Pass the raw token to verifyToken, not the decoded payload
+      const user = await this.supabaseService.verifyToken(token);
 
       if (!user) {
         throw new UnauthorizedException('User not found');
