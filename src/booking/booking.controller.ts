@@ -21,6 +21,9 @@ import {
 } from '@nestjs/swagger';
 import { BookingService } from './booking.service';
 import { CreateBookingDto, BookingResponseDto } from './dto';
+import { BookingExpirationService } from './booking-expiration.service';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
 
 @ApiTags('bookings')
 @Controller({
@@ -32,7 +35,10 @@ import { CreateBookingDto, BookingResponseDto } from './dto';
 export class BookingController {
   private readonly logger = new Logger(BookingController.name);
 
-  constructor(private readonly bookingService: BookingService) {}
+  constructor(
+    private readonly bookingService: BookingService,
+    private readonly bookingExpirationService: BookingExpirationService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new booking' })
@@ -135,6 +141,28 @@ export class BookingController {
     } catch (error) {
       this.logger.error(
         `Error in cancelBooking: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  @Post('admin/cleanup-expired')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @ApiOperation({ summary: 'Manually clean up expired bookings (Admin only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cleanup process completed successfully',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Requires admin role' })
+  async cleanupExpiredBookings() {
+    try {
+      return await this.bookingExpirationService.manuallyCleanupExpiredBookings();
+    } catch (error) {
+      this.logger.error(
+        `Error in cleanupExpiredBookings: ${error.message}`,
         error.stack,
       );
       throw error;

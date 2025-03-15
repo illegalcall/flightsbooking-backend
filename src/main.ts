@@ -1,3 +1,7 @@
+// Setup crypto polyfill for @nestjs/schedule
+import { setupCryptoPolyfill } from './utils/crypto-polyfill';
+setupCryptoPolyfill();
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';

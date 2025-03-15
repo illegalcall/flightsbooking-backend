@@ -1,3 +1,6 @@
+import { setupCryptoPolyfill } from '../src/utils/crypto-polyfill';
+setupCryptoPolyfill();
+
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   INestApplication,
