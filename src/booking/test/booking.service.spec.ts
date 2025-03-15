@@ -4,10 +4,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBookingDto } from '../dto/create-booking.dto';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BookingStatus, CabinClass, Seat } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 
 describe('BookingService', () => {
   let service: BookingService;
   let prismaService: PrismaService;
+  let configService: ConfigService;
 
   // Mock data
   const mockUserId = 'mock-user-id';
@@ -126,6 +128,14 @@ describe('BookingService', () => {
     $transaction: jest.fn((callback) => callback(mockPrismaService)),
   };
 
+  // Setup mock config service
+  const mockConfigService = {
+    get: jest.fn().mockImplementation((key, defaultValue) => {
+      if (key === 'SEAT_LOCK_EXPIRY_MINUTES') return 30; // Test with 30 minutes
+      return defaultValue;
+    }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -134,11 +144,16 @@ describe('BookingService', () => {
           provide: PrismaService,
           useValue: mockPrismaService,
         },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
       ],
     }).compile();
 
     service = module.get<BookingService>(BookingService);
     prismaService = module.get<PrismaService>(PrismaService);
+    configService = module.get<ConfigService>(ConfigService);
 
     // Reset mock implementations
     jest.clearAllMocks();
@@ -155,16 +170,15 @@ describe('BookingService', () => {
         mockUserProfile,
       );
       mockPrismaService.seat.findMany.mockImplementation((params) => {
-        // Mock all kinds of seat queries
         if (params.where.bookings) {
-          return []; // No booked seats
+          return Promise.resolve([]);
         } else if (params.where.seatLocks) {
-          return []; // No locked seats
+          return Promise.resolve([]);
         } else {
-          return [mockSeat]; // Available seats
+          return Promise.resolve([mockSeat]); // Available seats
         }
       });
-      mockPrismaService.flight.findUnique.mockResolvedValue(mockFlight);
+      mockPrismaService.flight.findUnique.mockResolvedValue(mockFlight as any);
       mockPrismaService.booking.create.mockResolvedValue(mockBooking);
       mockPrismaService.seatLock.create.mockResolvedValue({});
     });
@@ -183,6 +197,19 @@ describe('BookingService', () => {
       expect(mockPrismaService.$transaction).toHaveBeenCalled();
       expect(result).toBeDefined();
       expect(result.bookingReference).toBe(mockBooking.bookingReference);
+    });
+
+    it('should use the configured lock expiry duration', async () => {
+      await service.createBooking(mockUserId, mockCreateBookingDto);
+
+      // Verify the ConfigService was called with the correct key and default value
+      expect(configService.get).toHaveBeenCalledWith(
+        'SEAT_LOCK_EXPIRY_MINUTES',
+        15,
+      );
+
+      // Verify the seatLock.create was called with the expected expiry time
+      expect(mockPrismaService.seatLock.create).toHaveBeenCalled();
     });
 
     it('should throw NotFoundException if user profile is not found', async () => {

@@ -9,12 +9,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { BookingResponseDto } from './dto/booking-response.dto';
 import { randomBytes } from 'crypto';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class BookingService {
   private readonly logger = new Logger(BookingService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   /**
    * Generates a unique booking reference code
@@ -198,7 +202,11 @@ export class BookingService {
 
         // Create locks for the seats
         const lockExpiry = new Date();
-        lockExpiry.setMinutes(lockExpiry.getMinutes() + 15); // 15 minute lock
+        const lockDurationMinutes = this.configService.get<number>(
+          'SEAT_LOCK_EXPIRY_MINUTES',
+          15,
+        );
+        lockExpiry.setMinutes(lockExpiry.getMinutes() + lockDurationMinutes); // Configurable lock duration
 
         // Create locks for each seat
         await Promise.all(

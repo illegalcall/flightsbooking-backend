@@ -21,6 +21,9 @@ export const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string(),
   DEFAULT_CURRENCY: z.string().default('usd'),
 
+  // Booking
+  SEAT_LOCK_EXPIRY_MINUTES: z.string().transform(Number).default('15'),
+
   // Supabase
   SUPABASE_URL: z.string(),
   SUPABASE_KEY: z.string(),
