@@ -5,7 +5,12 @@ setupCryptoPolyfill();
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
-import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
+import {
+  Logger,
+  ValidationPipe,
+  VersioningType,
+  BadRequestException,
+} from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Env } from './config/env.schema';
 import * as bodyParser from 'body-parser';
@@ -26,7 +31,39 @@ async function bootstrap() {
     'WEBHOOK_PATHS',
     '/payment/webhook',
   );
+
+  // Validate webhook paths configuration
+  if (!webhookPathsConfig) {
+    throw new Error(
+      'WEBHOOK_PATHS environment variable is required but not set',
+    );
+  }
+
   const webhookPaths = webhookPathsConfig.split(',').map((path) => path.trim());
+
+  // Ensure all webhook paths are valid
+  for (const path of webhookPaths) {
+    if (!path.startsWith('/')) {
+      throw new Error(
+        `Invalid webhook path: ${path}. Webhook paths must start with '/'`,
+      );
+    }
+
+    if (path.includes('..') || path.includes('//')) {
+      throw new Error(
+        `Suspicious webhook path detected: ${path}. Path contains potentially unsafe patterns.`,
+      );
+    }
+  }
+
+  // Ensure webhook secret is configured for each service that uses webhooks
+  // For now we're just checking Stripe as it's the only webhook consumer
+  const stripeWebhookSecret = configService.get('STRIPE_WEBHOOK_SECRET');
+  if (!stripeWebhookSecret) {
+    throw new Error(
+      'STRIPE_WEBHOOK_SECRET is required for webhook security but not set',
+    );
+  }
 
   logger.log(
     `Configured webhook paths with raw body access: ${webhookPaths.join(', ')}`,

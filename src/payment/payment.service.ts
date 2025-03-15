@@ -61,6 +61,13 @@ export class PaymentService {
     } = createPaymentIntentDto;
 
     try {
+      // Validate userId
+      if (!userId) {
+        throw new BadRequestException(
+          'User ID is required to create a payment intent',
+        );
+      }
+
       // Find the user profile
       const userProfile = await this.prisma.userProfile.findUnique({
         where: { userId },
@@ -69,7 +76,7 @@ export class PaymentService {
 
       if (!userProfile) {
         throw new NotFoundException(
-          `User profile not found for user ${userId}`,
+          `User profile not found for user ID: ${userId}`,
         );
       }
 

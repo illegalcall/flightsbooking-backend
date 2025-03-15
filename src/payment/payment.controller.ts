@@ -8,6 +8,7 @@ import {
   RawBodyRequest,
   Req,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
@@ -48,7 +49,15 @@ export class PaymentController {
   ): Promise<PaymentResponseDto> {
     try {
       // Extract the user ID from the request (set by the AuthGuard)
-      const userId = req.user.sub;
+      const userId = req.user?.sub;
+
+      if (!userId) {
+        this.logger.error('User ID is missing from the authentication token');
+        throw new BadRequestException(
+          'Invalid authentication token: user ID missing',
+        );
+      }
+
       return await this.paymentService.createPaymentIntent(
         userId,
         createPaymentIntentDto,

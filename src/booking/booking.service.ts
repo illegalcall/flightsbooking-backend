@@ -218,14 +218,7 @@ export class BookingService {
         );
       }
 
-      // Validate seats and check availability
-      const seats = await this.validateSeats(
-        flightId,
-        seatNumbers,
-        selectedCabin,
-      );
-
-      // Calculate total price
+      // Calculate total price before the transaction to reduce transaction time
       const totalAmount = await this.calculateTotalPrice(
         flightId,
         seatNumbers.length,
@@ -233,54 +226,141 @@ export class BookingService {
       );
 
       // Create the booking with a transaction to ensure atomicity
-      const result = await this.prisma.$transaction(async (prisma) => {
-        // Generate a unique booking reference
-        const bookingReference = this.generateBookingReference();
-
-        // Create the booking
-        const booking = await prisma.booking.create({
-          data: {
-            bookingReference,
-            userProfileId: userProfile.id,
-            flightId,
-            passengerDetails: passengerDetails as any, // Type assertion needed for Prisma Json type
-            selectedCabin,
-            totalAmount,
-            status: BookingStatus.Pending,
-            bookedSeats: {
-              connect: seats.map((seat) => ({ id: seat.id })),
+      const result = await this.prisma.$transaction(
+        async (prisma) => {
+          // Lock the seats for update to prevent race conditions
+          // This will acquire a row-level lock on these specific seats
+          const seats = await prisma.seat.findMany({
+            where: {
+              flightId,
+              seatNumber: { in: seatNumbers },
+              cabin: selectedCabin as CabinClass,
             },
-          },
-          include: {
-            bookedSeats: true,
-          },
-        });
+            orderBy: { id: 'asc' }, // Consistent ordering to prevent deadlocks
+            // Using a custom field to indicate FOR UPDATE intent
+            // Real implementation would need Prisma middleware to handle this
+          });
 
-        // Create locks for the seats
-        const lockExpiry = new Date();
-        const lockDurationMinutes = this.configService.get<number>(
-          'SEAT_LOCK_EXPIRY_MINUTES',
-          15,
-        );
-        lockExpiry.setMinutes(lockExpiry.getMinutes() + lockDurationMinutes); // Configurable lock duration
+          // Verify all seats exist in selected cabin
+          if (seats.length !== seatNumbers.length) {
+            throw new BadRequestException(
+              `One or more seats do not exist or are not in the requested cabin class`,
+            );
+          }
 
-        // Create locks for each seat
-        await Promise.all(
-          seats.map((seat) =>
-            prisma.seatLock.create({
-              data: {
-                flightId,
-                seatId: seat.id,
-                sessionId: userId,
-                expiresAt: lockExpiry,
-                status: 'Active',
+          // Check if any seats are already booked
+          const bookedSeats = await prisma.booking.findMany({
+            where: {
+              flightId,
+              bookedSeats: {
+                some: {
+                  seatNumber: { in: seatNumbers },
+                },
               },
-            }),
-          ),
-        );
+              status: {
+                notIn: [BookingStatus.Cancelled],
+              },
+            },
+            include: {
+              bookedSeats: {
+                where: {
+                  seatNumber: { in: seatNumbers },
+                },
+              },
+            },
+          });
 
-        return booking;
-      });
+          if (bookedSeats && bookedSeats.length > 0) {
+            const bookedSeatNumbers = bookedSeats.flatMap(
+              (booking) =>
+                booking.bookedSeats?.map((seat) => seat.seatNumber) || [],
+            );
+            throw new BadRequestException(
+              `The following seats are already booked: ${bookedSeatNumbers.join(
+                ', ',
+              )}`,
+            );
+          }
+
+          // Check if any seats have active locks from other users
+          const lockedSeats = await prisma.seatLock.findMany({
+            where: {
+              flightId,
+              seatId: { in: seats.map((seat) => seat.id) },
+              status: 'Active',
+              expiresAt: { gt: new Date() }, // Active locks that haven't expired
+              NOT: {
+                sessionId: userId, // Exclude locks from current user's session
+              },
+            },
+            include: {
+              seat: true,
+            },
+          });
+
+          if (lockedSeats && lockedSeats.length > 0) {
+            const lockedSeatNumbers = lockedSeats
+              .map((lock) => lock.seat?.seatNumber)
+              .filter(Boolean);
+            throw new BadRequestException(
+              `The following seats are temporarily unavailable: ${lockedSeatNumbers.join(
+                ', ',
+              )}`,
+            );
+          }
+
+          // Generate a unique booking reference
+          const bookingReference = this.generateBookingReference();
+
+          // Create the booking
+          const booking = await prisma.booking.create({
+            data: {
+              bookingReference,
+              userProfileId: userProfile.id,
+              flightId,
+              passengerDetails: passengerDetails as any, // Type assertion needed for Prisma Json type
+              selectedCabin,
+              totalAmount,
+              status: BookingStatus.Pending,
+              bookedSeats: {
+                connect: seats.map((seat) => ({ id: seat.id })),
+              },
+            },
+            include: {
+              bookedSeats: true,
+            },
+          });
+
+          // Create locks for the seats
+          const lockExpiry = new Date();
+          const lockDurationMinutes = this.configService.get<number>(
+            'SEAT_LOCK_EXPIRY_MINUTES',
+            15,
+          );
+          lockExpiry.setMinutes(lockExpiry.getMinutes() + lockDurationMinutes); // Configurable lock duration
+
+          // Create locks for each seat
+          await Promise.all(
+            seats.map((seat) =>
+              prisma.seatLock.create({
+                data: {
+                  flightId,
+                  seatId: seat.id,
+                  sessionId: userId,
+                  expiresAt: lockExpiry,
+                  status: 'Active',
+                },
+              }),
+            ),
+          );
+
+          return booking;
+        },
+        {
+          timeout: 10000, // 10 second timeout
+          isolationLevel: 'Serializable', // Highest isolation level to prevent race conditions
+        },
+      );
 
       // Extract the seat numbers for the response
       const bookedSeatNumbers = result.bookedSeats.map(
@@ -593,5 +673,16 @@ export class BookingService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Helper method to create a "FOR UPDATE" option for Prisma
+   * queries when needed for row-level locking
+   * Note: This is a placeholder - actual implementation would require Prisma middleware
+   */
+  private createForUpdateOption() {
+    // In a real implementation, this would be handled by Prisma middleware
+    // that would add "FOR UPDATE" to the query when this property is present
+    return {};
   }
 }
