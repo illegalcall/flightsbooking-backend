@@ -63,7 +63,11 @@ export class PaymentController {
   }
 
   @Post('webhook')
-  @ApiOperation({ summary: 'Handle Stripe webhook events' })
+  @ApiOperation({
+    summary: 'Handle Stripe webhook events',
+    description:
+      'Processes Stripe webhook events. This endpoint path must be included in the WEBHOOK_PATHS environment variable to ensure raw body access for signature verification.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Webhook processed successfully',

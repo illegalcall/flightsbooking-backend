@@ -17,13 +17,31 @@ async function bootstrap() {
   const configService = app.get(ConfigService<Env>);
   const logger = new Logger('Bootstrap');
 
+  // Get webhook paths from configuration (comma-separated paths)
+  const webhookPathsConfig = configService.get(
+    'WEBHOOK_PATHS',
+    '/payment/webhook',
+  );
+  const webhookPaths = webhookPathsConfig.split(',').map((path) => path.trim());
+
+  logger.log(
+    `Configured webhook paths with raw body access: ${webhookPaths.join(', ')}`,
+  );
+
   // Configure body parsers
   app.use(
     bodyParser.json({
       verify: (req: any, res, buf) => {
-        // Make raw body available for Stripe webhook verification
-        if (req.originalUrl && req.originalUrl.includes('/payments/webhook')) {
+        // Check if request URL matches any configured webhook path
+        if (
+          req.originalUrl &&
+          webhookPaths.some((path) => req.originalUrl.includes(path))
+        ) {
+          // Make raw body available for webhook signature verification
           req.rawBody = buf;
+          logger.debug(
+            `Raw body attached to request for path: ${req.originalUrl}`,
+          );
         }
       },
     }),

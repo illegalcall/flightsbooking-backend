@@ -1,5 +1,11 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsNotEmpty,
+  IsString,
+  IsUUID,
+  IsNumber,
+  IsOptional,
+} from 'class-validator';
 
 export class CreatePaymentIntentDto {
   @ApiProperty({
@@ -17,4 +23,12 @@ export class CreatePaymentIntentDto {
   @IsString()
   @IsNotEmpty()
   currency: string;
+
+  @ApiPropertyOptional({
+    description: 'Expected total amount to be paid (for fraud prevention)',
+    example: 199.99,
+  })
+  @IsNumber()
+  @IsOptional()
+  expectedAmount?: number;
 }

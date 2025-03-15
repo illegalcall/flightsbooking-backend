@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,6 +17,7 @@ export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
   private readonly stripe: Stripe;
   private readonly defaultCurrency: string;
+  private readonly enableAmountVerification: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -34,6 +36,12 @@ export class PaymentService {
       'DEFAULT_CURRENCY',
       'usd',
     );
+
+    // Enable amount verification for payment security (default: true)
+    this.enableAmountVerification = this.configService.get<boolean>(
+      'ENABLE_AMOUNT_VERIFICATION',
+      true,
+    );
   }
 
   /**
@@ -46,8 +54,11 @@ export class PaymentService {
     userId: string,
     createPaymentIntentDto: CreatePaymentIntentDto,
   ): Promise<PaymentResponseDto> {
-    const { bookingId, currency = this.defaultCurrency } =
-      createPaymentIntentDto;
+    const {
+      bookingId,
+      currency = this.defaultCurrency,
+      expectedAmount,
+    } = createPaymentIntentDto;
 
     try {
       // Find the user profile
@@ -80,6 +91,20 @@ export class PaymentService {
       if (booking.status !== BookingStatus.Pending) {
         throw new BadRequestException(
           `Booking with ID ${bookingId} is not in a payable state. Current status: ${booking.status}`,
+        );
+      }
+
+      // Verify that the booking amount matches the expected amount (if provided and enabled)
+      if (
+        this.enableAmountVerification &&
+        expectedAmount !== undefined &&
+        booking.totalAmount !== expectedAmount
+      ) {
+        this.logger.warn(
+          `Amount mismatch detected for booking ${bookingId}. Expected: ${expectedAmount}, Actual: ${booking.totalAmount}`,
+        );
+        throw new BadRequestException(
+          `Amount verification failed. The booking amount does not match the expected amount.`,
         );
       }
 
@@ -166,8 +191,68 @@ export class PaymentService {
           });
       }
     } catch (error) {
-      this.logger.error(`Webhook error: ${error.message}`, error.stack);
-      throw new BadRequestException(`Webhook error: ${error.message}`);
+      // Enhanced error handling with detailed logging
+      const errorId = this.generateErrorId();
+      const errorDetails = {
+        errorId,
+        message: error.message,
+        stack: error.stack,
+        type: error.constructor.name,
+        timestamp: new Date().toISOString(),
+        additionalInfo: {
+          signatureLength: signature ? signature.length : 0,
+          payloadLength: payload ? payload.length : 0,
+        },
+      };
+
+      // Log detailed error information for debugging
+      this.logger.error(
+        `Webhook error [${errorId}]: ${error.message}`,
+        JSON.stringify(errorDetails),
+      );
+
+      // Send to monitoring service if configured
+      this.sendToMonitoringService(errorDetails);
+
+      // Throw a BadRequestException with error reference ID for client
+      throw new BadRequestException(
+        `Webhook processing error. Reference ID: ${errorId}`,
+      );
+    }
+  }
+
+  /**
+   * Generates a unique error ID for tracking
+   * @returns Random error identifier string
+   */
+  private generateErrorId(): string {
+    return 'err_' + Math.random().toString(36).substring(2, 12);
+  }
+
+  /**
+   * Sends error details to a monitoring service (e.g., Sentry, DataDog)
+   * @param errorDetails Error information to send
+   */
+  private sendToMonitoringService(errorDetails: any): void {
+    // This is a placeholder for actual integration with a monitoring service
+    // In a production environment, you would integrate with your chosen service
+    const monitoringEnabled = this.configService.get<boolean>(
+      'ENABLE_ERROR_MONITORING',
+      false,
+    );
+
+    if (monitoringEnabled) {
+      try {
+        // Example with a hypothetical monitoring client
+        // monitoringClient.captureException(errorDetails);
+        this.logger.debug(
+          `Error details sent to monitoring service: ${errorDetails.errorId}`,
+        );
+      } catch (err) {
+        this.logger.error(
+          `Failed to send error to monitoring service: ${err.message}`,
+        );
+      }
     }
   }
 

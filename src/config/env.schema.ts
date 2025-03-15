@@ -27,6 +27,9 @@ export const envSchema = z.object({
   // Supabase
   SUPABASE_URL: z.string(),
   SUPABASE_KEY: z.string(),
+
+  // Webhook configurations
+  WEBHOOK_PATHS: z.string(),
 });
 
 export type Env = z.infer<typeof envSchema>;
