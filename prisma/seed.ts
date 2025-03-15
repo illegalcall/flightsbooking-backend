@@ -118,10 +118,15 @@ async function seedIndianAirports() {
   const airportMap = new Map<string, string>();
 
   for (const airportData of airportsData) {
-    const airport = await prisma.airport.create({
-      data: airportData,
-    });
-    airportMap.set(airport.code, airport.id);
+    try {
+      const airport = await prisma.airport.create({
+        data: airportData,
+      });
+      airportMap.set(airport.code, airport.id);
+    } catch (error) {
+      console.error(`Failed to create airport ${airportData.code}:`, error);
+      // Consider a rollback mechanism here if critical
+    }
   }
 
   console.log(`Seeded ${airportsData.length} Indian airports!`);
@@ -532,10 +537,15 @@ async function createSeatsForFlight(
 
   // Create seats in batches
   for (let i = 0; i < seatData.length; i += 100) {
-    const batch = seatData.slice(i, i + 100);
-    await prisma.seat.createMany({
-      data: batch,
-    });
+    try {
+      const batch = seatData.slice(i, i + 100);
+      await prisma.seat.createMany({
+        data: batch,
+      });
+    } catch (error) {
+      console.error('Failed to create seats in batch:', error);
+      // Handle the error appropriately, e.g., retry or log
+    }
   }
 }
 
