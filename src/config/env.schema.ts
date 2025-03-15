@@ -19,6 +19,7 @@ export const envSchema = z.object({
   // Stripe
   STRIPE_SECRET_KEY: z.string(),
   STRIPE_WEBHOOK_SECRET: z.string(),
+  DEFAULT_CURRENCY: z.string().default('usd'),
 
   // Supabase
   SUPABASE_URL: z.string(),

@@ -13,9 +13,8 @@ export class CreatePaymentIntentDto {
   @ApiProperty({
     description: 'The currency to use for payment',
     example: 'usd',
-    default: 'usd',
   })
   @IsString()
   @IsNotEmpty()
-  currency = 'usd';
+  currency: string;
 }

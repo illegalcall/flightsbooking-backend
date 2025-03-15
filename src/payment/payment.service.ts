@@ -15,6 +15,7 @@ import Stripe from 'stripe';
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
   private readonly stripe: Stripe;
+  private readonly defaultCurrency: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -27,24 +28,32 @@ export class PaymentService {
         apiVersion: '2023-10-16' as any, // Type assertion for now
       },
     );
+
+    // Get default currency from configuration or fall back to 'usd'
+    this.defaultCurrency = this.configService.get<string>(
+      'DEFAULT_CURRENCY',
+      'usd',
+    );
   }
 
   /**
    * Creates a payment intent for a booking
-   * @param userId User ID from auth context
-   * @param createPaymentIntentDto Payment intent creation data
-   * @returns Payment intent details
+   * @param userId The ID of the user creating the payment intent
+   * @param createPaymentIntentDto The payment intent data
+   * @returns The created payment intent response
    */
   async createPaymentIntent(
     userId: string,
     createPaymentIntentDto: CreatePaymentIntentDto,
   ): Promise<PaymentResponseDto> {
-    const { bookingId, currency } = createPaymentIntentDto;
+    const { bookingId, currency = this.defaultCurrency } =
+      createPaymentIntentDto;
 
     try {
       // Find the user profile
       const userProfile = await this.prisma.userProfile.findUnique({
         where: { userId },
+        select: { id: true },
       });
 
       if (!userProfile) {
