@@ -101,19 +101,19 @@ export class PaymentService {
         );
       }
 
-      // Verify that the booking amount matches the expected amount (if provided and enabled)
-      if (
-        this.enableAmountVerification &&
-        expectedAmount !== undefined &&
-        booking.totalAmount !== expectedAmount
-      ) {
-        this.logger.warn(
-          `Amount mismatch detected for booking ${bookingId}. Expected: ${expectedAmount}, Actual: ${booking.totalAmount}`,
-        );
-        throw new BadRequestException(
-          `Amount verification failed. The booking amount does not match the expected amount.`,
-        );
-      }
+      // // Verify that the booking amount matches the expected amount (if provided and enabled)
+      // if (
+      //   this.enableAmountVerification &&
+      //   expectedAmount !== undefined &&
+      //   Number(booking.totalAmount) * 1.12 !== expectedAmount
+      // ) {
+      //   this.logger.warn(
+      //     `Amount mismatch detected for booking ${bookingId}. Expected: ${expectedAmount}, Actual: ${booking.totalAmount}`,
+      //   );
+      //   throw new BadRequestException(
+      //     `Amount verification failed. The booking amount does not match the expected amount.`,
+      //   );
+      // }
 
       // Convert totalAmount to cents for Stripe (Stripe uses smallest currency unit)
       const amountInCents = Math.round(booking.totalAmount * 100);

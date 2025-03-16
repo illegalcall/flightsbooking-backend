@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PaymentController } from '../payment.controller';
 import { PaymentService } from '../payment.service';
 import { CreatePaymentIntentDto } from '../dto';
-import { Logger } from '@nestjs/common';
+import { Logger, BadRequestException } from '@nestjs/common';
 
 describe('PaymentController', () => {
   let controller: PaymentController;
@@ -27,6 +27,7 @@ describe('PaymentController', () => {
     controller = module.get<PaymentController>(PaymentController);
     paymentService = module.get<PaymentService>(PaymentService);
     jest.spyOn(Logger.prototype, 'error').mockImplementation(jest.fn());
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(jest.fn());
   });
 
   afterEach(() => {
@@ -46,7 +47,7 @@ describe('PaymentController', () => {
       mockPaymentService.createPaymentIntent.mockResolvedValue(expectedResult);
 
       const result = await controller.createPaymentIntent(
-        { user: { sub: userId } },
+        { user: { userId: userId } },
         createDto,
       );
 
@@ -57,13 +58,29 @@ describe('PaymentController', () => {
       expect(result).toEqual(expectedResult);
     });
 
-    it('should handle errors properly', async () => {
+    it('should throw BadRequestException if userId is missing', async () => {
+      const createDto: CreatePaymentIntentDto = {
+        bookingId: 'booking123',
+        currency: 'usd',
+        expectedAmount: 100,
+      };
+
+      await expect(
+        controller.createPaymentIntent(
+          { user: {} }, // Missing userId
+          createDto,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(Logger.prototype.error).toHaveBeenCalled();
+    });
+
+    it('should handle service errors properly', async () => {
       const error = new Error('Test error');
       mockPaymentService.createPaymentIntent.mockRejectedValue(error);
 
       await expect(
         controller.createPaymentIntent(
-          { user: { sub: 'user123' } },
+          { user: { userId: 'user123' } },
           {} as CreatePaymentIntentDto,
         ),
       ).rejects.toThrow(error);
@@ -75,28 +92,40 @@ describe('PaymentController', () => {
   describe('handleWebhook', () => {
     it('should call the payment service with signature and payload', async () => {
       const signature = 'test_signature';
-      const rawBody = Buffer.from('test_payload');
+      const body = Buffer.from('test_payload');
       const expectedResult = { success: true };
 
       mockPaymentService.handleStripeWebhook.mockResolvedValue(expectedResult);
 
       const result = await controller.handleWebhook(signature, {
-        rawBody,
-      } as any);
+        body,
+        headers: {
+          'content-type': 'application/json',
+        },
+        url: '/test-url',
+        method: 'POST',
+        originalUrl: '/v1/payments/webhook',
+      });
 
       expect(paymentService.handleStripeWebhook).toHaveBeenCalledWith(
         signature,
-        rawBody,
+        body,
       );
       expect(result).toEqual(expectedResult);
     });
 
-    it('should throw an error if no raw body is provided', async () => {
+    it('should throw an error if body is not a buffer', async () => {
       await expect(
         controller.handleWebhook('test_signature', {
-          rawBody: undefined,
-        } as any),
-      ).rejects.toThrow('No raw body provided');
+          body: { test: 'data' },
+          headers: {
+            'content-type': 'application/json',
+          },
+          url: '/test-url',
+          method: 'POST',
+          originalUrl: '/v1/payments/webhook',
+        }),
+      ).rejects.toThrow(BadRequestException);
 
       expect(Logger.prototype.error).toHaveBeenCalled();
     });
@@ -104,8 +133,14 @@ describe('PaymentController', () => {
     it('should throw an error if no signature is provided', async () => {
       await expect(
         controller.handleWebhook(undefined, {
-          rawBody: Buffer.from('test_payload'),
-        } as any),
+          body: Buffer.from('test_payload'),
+          headers: {
+            'content-type': 'application/json',
+          },
+          url: '/test-url',
+          method: 'POST',
+          originalUrl: '/v1/payments/webhook',
+        }),
       ).rejects.toThrow('No Stripe signature provided');
 
       expect(Logger.prototype.error).toHaveBeenCalled();
@@ -117,8 +152,14 @@ describe('PaymentController', () => {
 
       await expect(
         controller.handleWebhook('test_signature', {
-          rawBody: Buffer.from('test_payload'),
-        } as any),
+          body: Buffer.from('test_payload'),
+          headers: {
+            'content-type': 'application/json',
+          },
+          url: '/test-url',
+          method: 'POST',
+          originalUrl: '/v1/payments/webhook',
+        }),
       ).rejects.toThrow(error);
 
       expect(Logger.prototype.error).toHaveBeenCalled();

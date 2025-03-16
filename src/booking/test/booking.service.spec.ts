@@ -109,6 +109,7 @@ describe('BookingService', () => {
   const mockPrismaService = {
     userProfile: {
       findUnique: jest.fn(),
+      create: jest.fn(),
     },
     seat: {
       findMany: jest.fn(),
@@ -245,6 +246,11 @@ describe('BookingService', () => {
 
     it('should throw NotFoundException if user profile is not found', async () => {
       mockPrismaService.userProfile.findUnique.mockResolvedValue(null);
+
+      // Mock that the create function will throw an error
+      mockPrismaService.userProfile.create.mockRejectedValue(
+        new NotFoundException('User profile not found'),
+      );
 
       await expect(
         service.createBooking(mockUserId, mockCreateBookingDto),

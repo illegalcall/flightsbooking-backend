@@ -60,7 +60,8 @@ export class BookingController {
   ): Promise<BookingResponseDto> {
     try {
       // Extract the user ID from the request (set by the AuthGuard)
-      const userId = req.user.sub;
+      const userId = req.user.userId;
+      console.log('🚀 ~ BookingController ~ userId:', userId);
       return await this.bookingService.createBooking(userId, createBookingDto);
     } catch (error) {
       this.logger.error(
@@ -81,7 +82,7 @@ export class BookingController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getUserBookings(@Request() req): Promise<BookingResponseDto[]> {
     try {
-      const userId = req.user.sub;
+      const userId = req.user.userId;
       return await this.bookingService.findUserBookings(userId);
     } catch (error) {
       this.logger.error(
@@ -131,7 +132,7 @@ export class BookingController {
     @Body('cancellationReason') cancellationReason?: string,
   ): Promise<BookingResponseDto> {
     try {
-      const userId = req.user.sub;
+      const userId = req.user.userId;
 
       if (!cancellationReason) {
         cancellationReason = 'Cancelled by user';
@@ -195,7 +196,7 @@ export class BookingController {
     @Param('id') id: string,
   ): Promise<{ success: boolean; message: string }> {
     try {
-      const userId = req.user.sub;
+      const userId = req.user.userId;
 
       // Get user profile
       const userProfile = await this.bookingService.getUserProfile(userId);
