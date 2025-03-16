@@ -72,7 +72,31 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 
 Nest is [MIT licensed](LICENSE).
 
+## Scheduled Tasks
 
+### Booking Expiration
 
+The application automatically expires pending bookings after a configured time period (default: 30 minutes).
+
+### Flight Status Updates
+
+The system includes an automatic flight status update service that runs every 2 minutes. It performs the following actions:
+
+- Fetches all flights within a recent time window
+- Determines the appropriate status for each flight based on departure and arrival times
+- Updates flight statuses in the database when changes are detected
+- Sends notifications to affected bookings
+
+Flight statuses include:
+- Scheduled: Default for future flights
+- Boarding: 60 minutes before departure
+- Delayed: Random chance (10%) for flights within 2 hours of departure
+- InAir: After departure and before arrival
+- Landed: After arrival time
+
+Manual flight status updates can be triggered via the API:
+```bash
+curl -X POST http://localhost:4000/flight-status/update
+```
 
 stripe listen --forward-to localhost:4000/webhook
