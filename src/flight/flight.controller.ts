@@ -93,6 +93,9 @@ export class FlightController {
   })
   @ApiResponse({ status: 404, description: 'Flight not found' })
   async getFlight(@Param('id') id: string): Promise<Flight> {
-    return this.flightService.findOne(id);
+    this.logger.log('Getting flight with ID: ' + id);
+    const flight = await this.flightService.findOne(id);
+    this.logger.log(`Successfully retrieved flight with ID: ${id}`);
+    return flight;
   }
 }

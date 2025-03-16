@@ -3,9 +3,14 @@ import {
   Flight as PrismaFlight,
   CabinClass,
   FlightStatus,
+  Prisma,
 } from '@prisma/client';
+import {
+  CabinClassSeats,
+  CabinSeatInfo,
+} from '../../booking/dto/cabin-class-config.dto';
 
-export class Flight implements PrismaFlight {
+export class Flight implements Omit<PrismaFlight, 'totalSeats'> {
   @ApiProperty({ description: 'Unique identifier of the flight' })
   id: string;
 
@@ -37,15 +42,15 @@ export class Flight implements PrismaFlight {
   basePrice: number;
 
   @ApiProperty({
-    description: 'Total seats by cabin class',
+    description: 'Total seats by cabin class with price multipliers',
     example: {
-      Economy: 150,
-      PremiumEconomy: 50,
-      Business: 30,
-      First: 10,
+      Economy: { seats: 150, multiplier: 1.0 },
+      PremiumEconomy: { seats: 50, multiplier: 1.5 },
+      Business: { seats: 30, multiplier: 2.5 },
+      First: { seats: 10, multiplier: 4.0 },
     },
   })
-  totalSeats: any;
+  totalSeats: Prisma.JsonValue;
 
   @ApiProperty({
     description: 'Current flight status',
@@ -79,4 +84,9 @@ export class Flight implements PrismaFlight {
     required: false,
   })
   calculatedPrice?: number;
+
+  /**
+   * Cabin class seats with price multipliers
+   */
+  cabinSeatsWithMultipliers?: CabinClassSeats;
 }
