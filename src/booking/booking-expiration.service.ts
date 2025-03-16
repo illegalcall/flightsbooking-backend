@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { BookingStatus } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
+import { bookingConfig } from '../config/booking.config';
 
 @Injectable()
 export class BookingExpirationService {
@@ -13,11 +14,19 @@ export class BookingExpirationService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
   ) {
-    // Get configuration for booking expiry or use default (30 minutes)
-    this.pendingBookingExpiryMinutes = this.configService.get<number>(
+    // Get configuration for booking expiry and validate it
+    const configValue = this.configService.get<number | string>(
       'PENDING_BOOKING_EXPIRY_MINUTES',
-      30,
     );
+
+    // Use the validation function from the config to ensure a valid value
+    this.pendingBookingExpiryMinutes =
+      bookingConfig.validatePendingBookingExpiry(
+        configValue !== undefined
+          ? configValue
+          : bookingConfig.pendingBookingExpiryMinutes,
+      );
+
     this.logger.log(
       `Pending booking expiry set to ${this.pendingBookingExpiryMinutes} minutes`,
     );

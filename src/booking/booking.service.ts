@@ -535,6 +535,11 @@ export class BookingService {
     cancellationReason: string,
   ): Promise<BookingResponseDto> {
     try {
+      // Set default cancellation reason if none provided
+      if (!cancellationReason) {
+        cancellationReason = 'Cancelled by user';
+      }
+
       // Verify the booking exists and belongs to the user
       const userProfile = await this.prisma.userProfile.findUnique({
         where: { userId },
