@@ -278,10 +278,10 @@ describe('BookingService', () => {
     it('should return a copy of the price multipliers', () => {
       // Setup - access private property for comparison
       const originalMultipliers = service['priceMultipliers'];
-      
+
       // Execute
       const result = service.getPriceMultipliers();
-      
+
       // Assert
       expect(result).toEqual(originalMultipliers);
       expect(result).not.toBe(originalMultipliers); // Should be a different object (copy)
@@ -299,7 +299,7 @@ describe('BookingService', () => {
     it('should return seats with multipliers for all cabin classes', async () => {
       // Execute
       const result = await service.getCabinSeatsWithMultipliers(mockFlightId);
-      
+
       // Assert
       expect(result).toBeDefined();
       expect(Object.keys(result).length).toBe(Object.keys(CabinClass).length);
@@ -320,7 +320,7 @@ describe('BookingService', () => {
     it('should call prisma with the correct parameters', async () => {
       // Execute
       await service.getCabinSeatsWithMultipliers(mockFlightId);
-      
+
       // Assert
       expect(mockPrismaService.seat.groupBy).toHaveBeenCalledWith({
         by: ['cabin'],
@@ -334,10 +334,10 @@ describe('BookingService', () => {
     it('should return a booking when found', async () => {
       // Setup
       mockPrismaService.booking.findUnique.mockResolvedValue(mockBooking);
-      
+
       // Execute
       const result = await service.findBookingById(mockBookingId);
-      
+
       // Assert
       expect(result).toBeDefined();
       expect(result.bookingReference).toBe(mockBooking.bookingReference);
@@ -350,7 +350,7 @@ describe('BookingService', () => {
     it('should throw NotFoundException when booking is not found', async () => {
       // Setup
       mockPrismaService.booking.findUnique.mockResolvedValue(null);
-      
+
       // Execute & Assert
       await expect(service.findBookingById(mockBookingId)).rejects.toThrow(
         NotFoundException,
@@ -362,15 +362,15 @@ describe('BookingService', () => {
     it('should return all bookings for a user', async () => {
       // Setup
       mockPrismaService.booking.findMany.mockResolvedValue([mockBooking]);
-      
+
       // Execute
       const result = await service.findUserBookings(mockUserId);
-      
+
       // Assert
       expect(result).toBeDefined();
       expect(result.length).toBe(1);
       expect(result[0].bookingReference).toBe(mockBooking.bookingReference);
-      
+
       // Update the expected parameters to match the actual implementation
       expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -378,17 +378,17 @@ describe('BookingService', () => {
             userProfileId: expect.any(String),
           },
           include: expect.any(Object),
-        })
+        }),
       );
     });
 
     it('should return empty array when no bookings found', async () => {
       // Setup
       mockPrismaService.booking.findMany.mockResolvedValue([]);
-      
+
       // Execute
       const result = await service.findUserBookings(mockUserId);
-      
+
       // Assert
       expect(result).toBeDefined();
       expect(result).toEqual([]);
@@ -402,7 +402,7 @@ describe('BookingService', () => {
         ...mockBooking,
         status: BookingStatus.Pending, // Ensure it's in a cancellable state
       });
-      
+
       // Update mock to simulate proper transaction behavior
       mockPrismaService.$transaction.mockImplementation((callback) => {
         return callback(mockPrismaService).then(() => ({
@@ -421,7 +421,7 @@ describe('BookingService', () => {
         mockUserId,
         'User requested cancellation',
       );
-      
+
       // Assert
       expect(result).toBeDefined();
       expect(result.status).toBe(BookingStatus.Cancelled);
@@ -434,13 +434,15 @@ describe('BookingService', () => {
         }),
         include: expect.any(Object),
       });
-      expect(mockNotificationService.sendBookingStatusNotification).toHaveBeenCalled();
+      expect(
+        mockNotificationService.sendBookingStatusNotification,
+      ).toHaveBeenCalled();
     });
 
     it('should throw NotFoundException when booking not found', async () => {
       // Setup
       mockPrismaService.booking.findFirst.mockResolvedValue(null);
-      
+
       // Execute & Assert
       await expect(
         service.cancelBooking(mockBookingId, mockUserId, 'Test reason'),
@@ -453,7 +455,7 @@ describe('BookingService', () => {
         ...mockBooking,
         status: BookingStatus.Cancelled,
       });
-      
+
       // Execute & Assert
       await expect(
         service.cancelBooking(mockBookingId, mockUserId, 'Test reason'),
@@ -464,11 +466,13 @@ describe('BookingService', () => {
   describe('getUserProfile', () => {
     it('should return a user profile when found', async () => {
       // Setup
-      mockPrismaService.userProfile.findUnique.mockResolvedValue(mockUserProfile);
-      
+      mockPrismaService.userProfile.findUnique.mockResolvedValue(
+        mockUserProfile,
+      );
+
       // Execute
       const result = await service.getUserProfile(mockUserId);
-      
+
       // Assert
       expect(result).toBe(mockUserProfile);
       expect(mockPrismaService.userProfile.findUnique).toHaveBeenCalledWith({
@@ -479,13 +483,15 @@ describe('BookingService', () => {
     it('should return null when profile not found', async () => {
       // Setup
       mockPrismaService.userProfile.findUnique.mockResolvedValue(null);
-      
+
       // Mock implementation to avoid throwing NotFoundException
-      jest.spyOn(service, 'getUserProfile').mockImplementation(async () => null);
-      
+      jest
+        .spyOn(service, 'getUserProfile')
+        .mockImplementation(async () => null);
+
       // Execute
       const result = await service.getUserProfile(mockUserId);
-      
+
       // Assert
       expect(result).toBeNull();
     });
@@ -496,11 +502,13 @@ describe('BookingService', () => {
       // Mock booking with userProfile
       const mockBookingWithUserProfile = {
         ...mockBooking,
-        userProfile: mockUserProfile
+        userProfile: mockUserProfile,
       };
-      
-      mockPrismaService.booking.findUnique.mockResolvedValue(mockBookingWithUserProfile);
-      mockPrismaService.booking.update.mockImplementation((params) => 
+
+      mockPrismaService.booking.findUnique.mockResolvedValue(
+        mockBookingWithUserProfile,
+      );
+      mockPrismaService.booking.update.mockImplementation((params) =>
         Promise.resolve({
           ...mockBookingWithUserProfile,
           status: params.data.status,
@@ -516,7 +524,7 @@ describe('BookingService', () => {
         BookingStatus.Confirmed,
         'Payment received',
       );
-      
+
       // Assert
       expect(result).toBeDefined();
       expect(result.status).toBe(BookingStatus.Confirmed);
@@ -528,7 +536,9 @@ describe('BookingService', () => {
         }),
         include: expect.any(Object),
       });
-      expect(mockNotificationService.sendBookingStatusNotification).toHaveBeenCalled();
+      expect(
+        mockNotificationService.sendBookingStatusNotification,
+      ).toHaveBeenCalled();
     });
 
     it('should update status to Cancelled', async () => {
@@ -538,7 +548,7 @@ describe('BookingService', () => {
         BookingStatus.Cancelled,
         'Admin cancelled',
       );
-      
+
       // Assert
       expect(result).toBeDefined();
       expect(result.status).toBe(BookingStatus.Cancelled);
@@ -559,7 +569,7 @@ describe('BookingService', () => {
         mockBookingId,
         BookingStatus.AwaitingPayment,
       );
-      
+
       // Assert
       expect(result).toBeDefined();
       expect(result.status).toBe(BookingStatus.AwaitingPayment);
@@ -575,7 +585,7 @@ describe('BookingService', () => {
     it('should throw NotFoundException when booking not found', async () => {
       // Setup
       mockPrismaService.booking.findUnique.mockResolvedValue(null);
-      
+
       // Execute & Assert
       await expect(
         service.updateBookingStatus(mockBookingId, BookingStatus.Confirmed),

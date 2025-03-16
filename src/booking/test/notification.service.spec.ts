@@ -110,7 +110,7 @@ describe('NotificationService', () => {
       const status = BookingStatus.Confirmed;
       const email = 'test@example.com';
       const userName = 'Test User';
-      
+
       // Spy on the events Subject's next method
       const nextSpy = jest.spyOn(service['events'], 'next');
 
@@ -134,7 +134,7 @@ describe('NotificationService', () => {
           status,
           message: expect.any(String),
           timestamp: expect.any(Date),
-        })
+        }),
       );
     });
 
@@ -144,9 +144,9 @@ describe('NotificationService', () => {
         if (key === 'ENABLE_EMAIL_NOTIFICATIONS') return false;
         return 'test';
       });
-      
+
       const sendEmailSpy = jest.spyOn(service as any, 'sendStatusChangeEmail');
-      
+
       // Execute
       await service.sendBookingStatusNotification(
         'userId',
@@ -154,7 +154,7 @@ describe('NotificationService', () => {
         'reference',
         BookingStatus.Confirmed,
         'email',
-        'name'
+        'name',
       );
 
       // Assert
@@ -179,57 +179,77 @@ describe('NotificationService', () => {
   describe('private methods', () => {
     describe('getStatusChangeMessage', () => {
       it('should return correct message for Pending status', () => {
-        const message = (service as any).getStatusChangeMessage(BookingStatus.Pending);
+        const message = (service as any).getStatusChangeMessage(
+          BookingStatus.Pending,
+        );
         expect(message).toContain('not yet confirmed');
         expect(message).toContain('complete payment');
       });
 
       it('should return correct message for AwaitingPayment status', () => {
-        const message = (service as any).getStatusChangeMessage(BookingStatus.AwaitingPayment);
+        const message = (service as any).getStatusChangeMessage(
+          BookingStatus.AwaitingPayment,
+        );
         expect(message).toContain('processing your payment');
       });
 
       it('should return correct message for Confirmed status', () => {
-        const message = (service as any).getStatusChangeMessage(BookingStatus.Confirmed);
+        const message = (service as any).getStatusChangeMessage(
+          BookingStatus.Confirmed,
+        );
         expect(message).toContain('confirmed');
         expect(message).toContain('secured');
       });
 
       it('should return correct message for Cancelled status', () => {
-        const message = (service as any).getStatusChangeMessage(BookingStatus.Cancelled);
+        const message = (service as any).getStatusChangeMessage(
+          BookingStatus.Cancelled,
+        );
         expect(message).toContain('cancelled');
         expect(message).toContain('refund');
       });
 
       it('should return default message for unknown status', () => {
-        const message = (service as any).getStatusChangeMessage('UnknownStatus' as any);
+        const message = (service as any).getStatusChangeMessage(
+          'UnknownStatus' as any,
+        );
         expect(message).toBe('Your booking status has been updated.');
       });
     });
 
     describe('getNextStepsMessage', () => {
       it('should return correct message for Pending status', () => {
-        const message = (service as any).getNextStepsMessage(BookingStatus.Pending);
+        const message = (service as any).getNextStepsMessage(
+          BookingStatus.Pending,
+        );
         expect(message).toContain('complete your payment');
       });
 
       it('should return correct message for AwaitingPayment status', () => {
-        const message = (service as any).getNextStepsMessage(BookingStatus.AwaitingPayment);
+        const message = (service as any).getNextStepsMessage(
+          BookingStatus.AwaitingPayment,
+        );
         expect(message).toContain('No action is required');
       });
 
       it('should return correct message for Confirmed status', () => {
-        const message = (service as any).getNextStepsMessage(BookingStatus.Confirmed);
+        const message = (service as any).getNextStepsMessage(
+          BookingStatus.Confirmed,
+        );
         expect(message).toContain('download your e-ticket');
       });
 
       it('should return correct message for Cancelled status', () => {
-        const message = (service as any).getNextStepsMessage(BookingStatus.Cancelled);
+        const message = (service as any).getNextStepsMessage(
+          BookingStatus.Cancelled,
+        );
         expect(message).toContain('new booking');
       });
 
       it('should return empty string for unknown status', () => {
-        const message = (service as any).getNextStepsMessage('UnknownStatus' as any);
+        const message = (service as any).getNextStepsMessage(
+          'UnknownStatus' as any,
+        );
         expect(message).toBe('');
       });
     });
@@ -240,18 +260,20 @@ describe('NotificationService', () => {
           if (key === 'NODE_ENV') return 'development';
           return true;
         });
-        
+
         const loggerSpy = jest.spyOn(service['logger'], 'log');
-        
+
         const result = await (service as any).sendStatusChangeEmail(
           'test@example.com',
           'Test User',
           'ABC123',
-          BookingStatus.Confirmed
+          BookingStatus.Confirmed,
         );
-        
+
         expect(result).toBe(true);
-        expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('[DEV MODE]'));
+        expect(loggerSpy).toHaveBeenCalledWith(
+          expect.stringContaining('[DEV MODE]'),
+        );
       });
 
       it('should handle errors when sending email fails', async () => {
@@ -259,26 +281,26 @@ describe('NotificationService', () => {
           if (key === 'NODE_ENV') return 'production';
           return true;
         });
-        
+
         // Mock an error
         const mockError = new Error('Email sending failed');
         jest.spyOn(service['logger'], 'log').mockImplementation(() => {
           throw mockError;
         });
-        
+
         const errorSpy = jest.spyOn(service['logger'], 'error');
-        
+
         const result = await (service as any).sendStatusChangeEmail(
           'test@example.com',
           'Test User',
           'ABC123',
-          BookingStatus.Confirmed
+          BookingStatus.Confirmed,
         );
-        
+
         expect(result).toBe(false);
         expect(errorSpy).toHaveBeenCalledWith(
           expect.stringContaining('Error sending status change email'),
-          expect.any(String)
+          expect.any(String),
         );
       });
     });
@@ -288,7 +310,7 @@ describe('NotificationService', () => {
     it('should filter events by userId in getNotificationEventsForUser', (done) => {
       const targetUserId = 'target-user';
       const otherUserId = 'other-user';
-      
+
       // Create an event for the target user
       const targetEvent = {
         userId: targetUserId,
@@ -297,28 +319,29 @@ describe('NotificationService', () => {
         type: 'status_change' as const,
         status: BookingStatus.Confirmed,
         message: 'Test message',
-        timestamp: new Date()
+        timestamp: new Date(),
       };
-      
+
       // Create an event for another user
       const otherEvent = {
         ...targetEvent,
         userId: otherUserId,
         bookingId: 'booking-2',
-        bookingReference: 'REF2'
+        bookingReference: 'REF2',
       };
-      
+
       // Subscribe to events for target user
-      const subscription = service.getNotificationEventsForUser(targetUserId)
+      const subscription = service
+        .getNotificationEventsForUser(targetUserId)
         .subscribe({
           next: (event) => {
             expect(event).toEqual(targetEvent);
             expect(event.userId).toBe(targetUserId);
             subscription.unsubscribe();
             done();
-          }
+          },
         });
-      
+
       // Emit both events
       service['events'].next(otherEvent); // Should be filtered out
       service['events'].next(targetEvent); // Should be received by the subscriber
@@ -333,9 +356,9 @@ describe('NotificationService', () => {
         type: 'status_change' as const,
         status: BookingStatus.Confirmed,
         message: 'Test message 1',
-        timestamp: new Date()
+        timestamp: new Date(),
       };
-      
+
       const event2 = {
         userId: 'user-2',
         bookingId: 'booking-2',
@@ -343,22 +366,21 @@ describe('NotificationService', () => {
         type: 'status_change' as const,
         status: BookingStatus.Cancelled,
         message: 'Test message 2',
-        timestamp: new Date()
+        timestamp: new Date(),
       };
-      
-      const subscription = service.getAllNotificationEvents()
-        .subscribe({
-          next: (event) => {
-            events.push(event);
-            if (events.length === 2) {
-              expect(events).toContainEqual(event1);
-              expect(events).toContainEqual(event2);
-              subscription.unsubscribe();
-              done();
-            }
+
+      const subscription = service.getAllNotificationEvents().subscribe({
+        next: (event) => {
+          events.push(event);
+          if (events.length === 2) {
+            expect(events).toContainEqual(event1);
+            expect(events).toContainEqual(event2);
+            subscription.unsubscribe();
+            done();
           }
-        });
-      
+        },
+      });
+
       // Emit both events
       service['events'].next(event1);
       service['events'].next(event2);
