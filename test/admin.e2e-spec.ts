@@ -47,13 +47,13 @@ describe('AdminController (e2e)', () => {
   let configService: ConfigService;
   let apiPrefix: string;
   let apiVersion: string;
-  
+
   // Test data
   const testUserId = 'test-user-id';
   const testUserProfileId = 'test-profile-id';
   const testFlightId = 'test-flight-id';
   const testBookingId = 'test-booking-id';
-  
+
   // Mock data
   const mockUserProfiles = [
     {
@@ -263,17 +263,21 @@ describe('AdminController (e2e)', () => {
 
     // Mock userProfile.findMany with bookings
     mockPrismaService.userProfile.findMany.mockImplementation(() => {
-      return Promise.resolve(mockUserProfiles.map(user => ({
-        ...user,
-        bookings: user.id === testUserProfileId ? mockBookings : [],
-        _count: {
-          bookings: user.id === testUserProfileId ? mockBookings.length : 0,
-        },
-      })));
+      return Promise.resolve(
+        mockUserProfiles.map((user) => ({
+          ...user,
+          bookings: user.id === testUserProfileId ? mockBookings : [],
+          _count: {
+            bookings: user.id === testUserProfileId ? mockBookings.length : 0,
+          },
+        })),
+      );
     });
-    
-    mockPrismaService.userProfile.count.mockResolvedValue(mockUserProfiles.length);
-    
+
+    mockPrismaService.userProfile.count.mockResolvedValue(
+      mockUserProfiles.length,
+    );
+
     // Mock userProfile.findUnique for userId lookups
     mockPrismaService.userProfile.findUnique.mockImplementation((args) => {
       let user;
@@ -282,37 +286,42 @@ describe('AdminController (e2e)', () => {
       } else if (args.where.userId) {
         user = mockUserProfiles.find((u) => u.userId === args.where.userId);
       }
-      
+
       if (user) {
         const userData = {
           ...user,
-          bookings: mockBookings.filter(b => b.userProfileId === user.id),
+          bookings: mockBookings.filter((b) => b.userProfileId === user.id),
           _count: {
-            bookings: mockBookings.filter(b => b.userProfileId === user.id).length,
-          }
+            bookings: mockBookings.filter((b) => b.userProfileId === user.id)
+              .length,
+          },
         };
         return Promise.resolve(userData);
       }
-      
+
       return Promise.resolve(null);
     });
-    
+
     // Also mock findFirst for userId lookups
     mockPrismaService.userProfile.findFirst.mockImplementation((args) => {
       if (args.where && args.where.userId) {
-        const user = mockUserProfiles.find((u) => u.userId === args.where.userId);
+        const user = mockUserProfiles.find(
+          (u) => u.userId === args.where.userId,
+        );
         if (user) {
           return Promise.resolve({
             ...user,
-            bookings: mockBookings.filter(b => b.userProfileId === user.id),
+            bookings: mockBookings.filter((b) => b.userProfileId === user.id),
           });
         }
       }
       return Promise.resolve(null);
     });
-    
+
     mockPrismaService.userProfile.update.mockImplementation((args) => {
-      const userIndex = mockUserProfiles.findIndex((u) => u.id === args.where.id);
+      const userIndex = mockUserProfiles.findIndex(
+        (u) => u.id === args.where.id,
+      );
       if (userIndex === -1) return Promise.resolve(null);
       const updatedUser = { ...mockUserProfiles[userIndex], ...args.data };
       return Promise.resolve(updatedUser);
@@ -326,7 +335,9 @@ describe('AdminController (e2e)', () => {
       return Promise.resolve(booking || null);
     });
     mockPrismaService.booking.update.mockImplementation((args) => {
-      const bookingIndex = mockBookings.findIndex((b) => b.id === args.where.id);
+      const bookingIndex = mockBookings.findIndex(
+        (b) => b.id === args.where.id,
+      );
       if (bookingIndex === -1) return Promise.resolve(null);
       const updatedBooking = { ...mockBookings[bookingIndex], ...args.data };
       return Promise.resolve(updatedBooking);
@@ -387,11 +398,11 @@ describe('AdminController (e2e)', () => {
           if (res.status !== 200 && res.status !== 404) {
             throw new Error(`Expected status 200 or 404, got ${res.status}`);
           }
-          
+
           // If we got a 200 response, verify the structure
           if (res.status === 200) {
             expect(res.body).toHaveProperty('success', true);
-            
+
             // The API might return either a user object with userId or id
             if (res.body.data) {
               const hasUserId = res.body.data.userId === testUserId;
@@ -405,14 +416,16 @@ describe('AdminController (e2e)', () => {
     it('PUT /users/:userId/role - should update user role', () => {
       // Try with userProfileId instead of userId
       return request(app.getHttpServer())
-        .put(`/${apiPrefix}/v${apiVersion}/admin/users/${testUserProfileId}/role`)
+        .put(
+          `/${apiPrefix}/v${apiVersion}/admin/users/${testUserProfileId}/role`,
+        )
         .send({ role: 'ADMIN' })
         .expect((res) => {
           // Only check status if 200 or 404
           if (res.status !== 200 && res.status !== 404) {
             throw new Error(`Expected status 200 or 404, got ${res.status}`);
           }
-          
+
           // If we got a 200 response, verify the structure
           if (res.status === 200) {
             expect(res.body).toHaveProperty('success', true);
@@ -422,7 +435,9 @@ describe('AdminController (e2e)', () => {
 
     it('POST /users/:userId/disable - should disable a user', () => {
       return request(app.getHttpServer())
-        .post(`/${apiPrefix}/v${apiVersion}/admin/users/${testUserProfileId}/disable`)
+        .post(
+          `/${apiPrefix}/v${apiVersion}/admin/users/${testUserProfileId}/disable`,
+        )
         .expect(201)
         .expect((res) => {
           expect(res.body).toHaveProperty('success', true);
@@ -463,7 +478,9 @@ describe('AdminController (e2e)', () => {
 
     it('PUT /bookings/:bookingId/status - should update booking status', () => {
       return request(app.getHttpServer())
-        .put(`/${apiPrefix}/v${apiVersion}/admin/bookings/${testBookingId}/status`)
+        .put(
+          `/${apiPrefix}/v${apiVersion}/admin/bookings/${testBookingId}/status`,
+        )
         .send({ status: 'Cancelled' })
         .expect(200)
         .expect((res) => {
@@ -563,4 +580,4 @@ describe('AdminController (e2e)', () => {
         });
     });
   });
-}); 
+});
