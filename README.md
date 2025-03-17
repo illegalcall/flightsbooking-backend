@@ -99,4 +99,59 @@ Manual flight status updates can be triggered via the API:
 curl -X POST http://localhost:4000/flight-status/update
 ```
 
+## Deployment
+
+### Using Docker
+
+The application can be deployed using Docker and Docker Compose. This provides an isolated environment with all necessary dependencies.
+
+#### Prerequisites
+- Docker and Docker Compose installed on your server
+- Access to environment variables file (.env)
+
+#### Steps to Deploy
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd flightsbooking-backend
+   ```
+
+2. **Configure environment variables**
+   Create a `.env` file with all required variables or use the `.env.example` as a template:
+   ```bash
+   cp .env.example .env
+   # Edit .env to set proper values for your environment
+   ```
+
+3. **Build and start the containers**
+   ```bash
+   docker-compose up -d
+   ```
+   This will start both the API server and PostgreSQL database.
+
+4. **Apply database migrations**
+   ```bash
+   docker-compose exec api npx prisma migrate deploy
+   ```
+
+5. **Seed the database (optional)**
+   ```bash
+   docker-compose exec api npm run prisma:seed
+   ```
+
+6. **Verify deployment**
+   The API will be accessible at `http://<your-server-ip>:4000`
+   Swagger documentation is available at `http://<your-server-ip>:4000/api`
+
+### Scaling and Production Considerations
+
+For production environments:
+
+1. **Environment Variables**: Ensure all sensitive information is set via environment variables, not hardcoded
+2. **Database Backups**: Configure regular backups for the PostgreSQL database
+3. **Logging**: Logs are stored in the `./logs` directory mapped to the container
+4. **Monitoring**: Set up monitoring for container health and application metrics
+5. **SSL/TLS**: For production, configure HTTPS using a reverse proxy like Nginx
+
 stripe listen --forward-to localhost:4000/webhook

@@ -61,7 +61,6 @@ export class BookingController {
     try {
       // Extract the user ID from the request (set by the AuthGuard)
       const userId = req.user.userId;
-      console.log('🚀 ~ BookingController ~ userId:', userId);
       return await this.bookingService.createBooking(userId, createBookingDto);
     } catch (error) {
       this.logger.error(

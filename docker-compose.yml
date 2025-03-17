@@ -1,0 +1,19 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flights_booking_api
+    restart: always
+    ports:
+      - "4000:4000"      
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - flights-network
+
+networks:
+  flights-network:
+    driver: bridge 

@@ -354,9 +354,6 @@ describe('BookingController (e2e)', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .send(mockCreateBookingDto);
 
-      // Log the response for debugging
-      console.log(`Create booking response: ${response.status}`, response.body);
-
       // Assert the response status is either 201 (created) or 400 (bad request)
       // Since we're mocking services, we're really testing that the endpoint itself can be reached
       expect([201, 400]).toContain(response.status);
