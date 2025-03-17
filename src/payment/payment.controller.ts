@@ -104,23 +104,26 @@ export class PaymentController {
           : 0,
       });
 
-      // Check if the request body is a Buffer (raw body)
-      if (!request.body || !Buffer.isBuffer(request.body)) {
-        this.logger.error('Invalid webhook payload', {
-          bodyType: typeof request.body,
-          isBuffer: Buffer.isBuffer(request.body),
-          contentLength: request.headers['content-length'],
-          body: request.body
-            ? JSON.stringify(request.body).substring(0, 100) + '...'
-            : 'null',
-          url: request.url,
-          originalUrl: request.originalUrl,
-          headers: JSON.stringify(request.headers),
-        });
+      // Ensure the request body is a Buffer
+      if (!request.body) {
+        throw new BadRequestException('Missing request body');
+      }
 
-        throw new BadRequestException(
-          'Invalid webhook payload. Ensure the webhook is properly configured to receive raw bodies.',
-        );
+      // If body is not already a buffer, and it's an object, try to stringify and convert to buffer
+      let rawBody: Buffer;
+      if (!Buffer.isBuffer(request.body)) {
+        this.logger.warn('Request body is not a buffer, attempting to convert');
+        if (typeof request.body === 'string') {
+          rawBody = Buffer.from(request.body);
+        } else if (typeof request.body === 'object') {
+          rawBody = Buffer.from(JSON.stringify(request.body));
+        } else {
+          throw new BadRequestException(
+            'Invalid webhook payload format. Cannot convert to buffer.',
+          );
+        }
+      } else {
+        rawBody = request.body;
       }
 
       if (!signature) {
@@ -128,16 +131,13 @@ export class PaymentController {
       }
 
       this.logger.log('Processing webhook with valid payload', {
-        payloadLength: request.body.length,
+        payloadLength: rawBody.length,
         signatureLength: signature.length,
         url: request.originalUrl,
       });
 
       // Pass the raw buffer directly to the service
-      return await this.paymentService.handleStripeWebhook(
-        signature,
-        request.body,
-      );
+      return await this.paymentService.handleStripeWebhook(signature, rawBody);
     } catch (error) {
       this.logger.error(
         `Error in handleWebhook: ${error.message}`,

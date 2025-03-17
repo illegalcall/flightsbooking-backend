@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { PaymentController } from '../payment.controller';
-import { PaymentService } from '../payment.service';
-import { CreatePaymentIntentDto } from '../dto';
+import { PaymentController } from './payment.controller';
+import { PaymentService } from './payment.service';
+import { CreatePaymentIntentDto } from './dto';
 import { Logger, BadRequestException } from '@nestjs/common';
 
 describe('PaymentController', () => {
@@ -28,6 +28,7 @@ describe('PaymentController', () => {
     paymentService = module.get<PaymentService>(PaymentService);
     jest.spyOn(Logger.prototype, 'error').mockImplementation(jest.fn());
     jest.spyOn(Logger.prototype, 'log').mockImplementation(jest.fn());
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(jest.fn());
   });
 
   afterEach(() => {
@@ -114,20 +115,33 @@ describe('PaymentController', () => {
       expect(result).toEqual(expectedResult);
     });
 
-    it('should throw an error if body is not a buffer', async () => {
+    it('should convert non-buffer body to buffer and process it', async () => {
+      // Mock the service to return a resolved value in case validation passes
+      mockPaymentService.handleStripeWebhook.mockResolvedValue({
+        success: true,
+      });
+
+      // Setup our controller spy to verify it attempts to handle body properly
+      jest.spyOn(Logger.prototype, 'warn').mockImplementation(jest.fn());
+
+      // Use expect().rejects instead of try/catch
       await expect(
         controller.handleWebhook('test_signature', {
-          body: { test: 'data' },
-          headers: {
-            'content-type': 'application/json',
-          },
+          body: { test: 'data' }, // Non-buffer body
+          headers: { 'content-type': 'application/json' },
           url: '/test-url',
           method: 'POST',
           originalUrl: '/v1/payments/webhook',
         }),
-      ).rejects.toThrow(BadRequestException);
+      ).resolves.toEqual({ success: true });
 
-      expect(Logger.prototype.error).toHaveBeenCalled();
+      // Since the controller handles non-buffer by converting it, we should see a warning
+      expect(Logger.prototype.warn).toHaveBeenCalledWith(
+        'Request body is not a buffer, attempting to convert',
+      );
+
+      // The service should have been called since the controller converts the body
+      expect(paymentService.handleStripeWebhook).toHaveBeenCalled();
     });
 
     it('should throw an error if no signature is provided', async () => {

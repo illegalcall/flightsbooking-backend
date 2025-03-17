@@ -46,23 +46,34 @@ async function bootstrap() {
 
   logger.log(`Configuring webhook paths: ${webhookPaths.join(', ')}`);
 
+  // Default JSON parser for most routes (but not for webhooks)
+  app.use((req, res, next) => {
+    // Skip body parsing for webhook routes
+    if (webhookPaths.some((path) => req.originalUrl.includes(path))) {
+      return next();
+    }
+    return bodyParser.json()(req, res, next);
+  });
+
   // Register the raw body parser for webhook endpoints
   for (const path of webhookPaths) {
     logger.log(`Setting up raw body parser for path: ${path}`);
     app.use(
       path,
       express.raw({
-        type: ['application/json', 'application/json; charset=utf-8'],
+        type: '*/*',
         limit: '10mb',
       }),
     );
   }
 
-  // Default JSON parser for all other routes
-  app.use(bodyParser.json());
-
-  // Add urlencoded parser for form data
-  app.use(bodyParser.urlencoded({ extended: true }));
+  // Add urlencoded parser for form data (except for webhooks)
+  app.use((req, res, next) => {
+    if (webhookPaths.some((path) => req.originalUrl.includes(path))) {
+      return next();
+    }
+    return bodyParser.urlencoded({ extended: true })(req, res, next);
+  });
 
   // Enable validation pipe
   app.useGlobalPipes(new ValidationPipe({ transform: true }));

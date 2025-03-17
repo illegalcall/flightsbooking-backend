@@ -130,7 +130,6 @@ export class PaymentService {
         // Automatically attach a payment method if the customer has one saved
         setup_future_usage: 'off_session',
       });
-
       // Update the booking status to AwaitingPayment
       await this.prisma.booking.update({
         where: { id: bookingId },
@@ -177,12 +176,40 @@ export class PaymentService {
         'STRIPE_WEBHOOK_SECRET',
       );
 
+      if (!webhookSecret) {
+        this.logger.error('Missing STRIPE_WEBHOOK_SECRET in configuration');
+        throw new InternalServerErrorException(
+          'Webhook configuration missing: STRIPE_WEBHOOK_SECRET',
+        );
+      }
+
+      // Debug payload information
+      this.logger.debug('Webhook payload received', {
+        payloadLength: payload.length,
+        signatureLength: signature.length,
+        payloadPreview: payload.toString('utf8').substring(0, 100) + '...',
+      });
+
       // Verify the webhook signature
-      const event = this.stripe.webhooks.constructEvent(
-        payload,
-        signature,
-        webhookSecret,
-      );
+      let event: Stripe.Event;
+      try {
+        event = this.stripe.webhooks.constructEvent(
+          payload,
+          signature,
+          webhookSecret,
+        );
+      } catch (err) {
+        this.logger.error(
+          `Webhook signature verification failed: ${err.message}`,
+          err.stack,
+        );
+        // More specific error for troubleshooting
+        throw new BadRequestException(
+          `Stripe signature verification failed: ${err.message}`,
+        );
+      }
+
+      this.logger.log(`Processing Stripe event: ${event.type}`);
 
       // Process the event based on its type
       switch (event.type) {
