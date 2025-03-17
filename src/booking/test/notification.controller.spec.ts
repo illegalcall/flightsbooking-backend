@@ -57,7 +57,7 @@ describe('NotificationController', () => {
       // Mock request object with authenticated user
       const req = {
         user: {
-          sub: 'test-user-id',
+          userId: 'test-user-id',
         },
       };
 

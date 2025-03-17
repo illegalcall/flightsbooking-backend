@@ -3,6 +3,7 @@ import { BookingExpirationService } from '../booking-expiration.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { BookingStatus } from '@prisma/client';
+import { NotificationService } from '../notification.service';
 
 describe('BookingExpirationService', () => {
   let service: BookingExpirationService;
@@ -16,6 +17,12 @@ describe('BookingExpirationService', () => {
     status: BookingStatus.Pending,
     createdAt: new Date(Date.now() - 40 * 60 * 1000), // 40 minutes ago
     bookedSeats: [{ id: 'seat-1' }, { id: 'seat-2' }],
+    userProfile: {
+      id: 'user1',
+      userId: 'auth0|user1',
+      email: 'user@example.com',
+      fullName: 'Test User',
+    },
   };
 
   // Setup mocks
@@ -37,6 +44,13 @@ describe('BookingExpirationService', () => {
     }),
   };
 
+  const mockNotificationService = {
+    sendBookingStatusNotification: jest.fn().mockResolvedValue(true),
+    sendFlightUpdateNotification: jest.fn().mockResolvedValue(true),
+    getNotificationEventsForUser: jest.fn(),
+    getAllNotificationEvents: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -48,6 +62,10 @@ describe('BookingExpirationService', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: NotificationService,
+          useValue: mockNotificationService,
         },
       ],
     }).compile();

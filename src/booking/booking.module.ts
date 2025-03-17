@@ -7,9 +7,10 @@ import { ETicketService } from './e-ticket.service';
 import { EmailService } from './email.service';
 import { NotificationService } from './notification.service';
 import { NotificationController } from './notification.controller';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuthModule],
   controllers: [BookingController, NotificationController],
   providers: [
     BookingService,

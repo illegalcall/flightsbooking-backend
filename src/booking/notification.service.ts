@@ -243,4 +243,42 @@ Flights Booking Team
         return '';
     }
   }
+
+  // Add this method if it doesn't already exist
+
+  async sendFlightUpdateNotification(
+    userId: string,
+    bookingId: string,
+    bookingReference: string,
+    flightId: string,
+    flightNumber: string,
+    email: string,
+    name: string,
+    message = 'Your flight details have been updated',
+  ): Promise<void> {
+    try {
+      // Create notification event
+      const event: NotificationEvent = {
+        userId,
+        bookingId,
+        bookingReference,
+        type: 'flight_update',
+        message,
+        timestamp: new Date(),
+      };
+
+      // Emit the event to all subscribers
+      this.events.next(event);
+
+      this.logger.log(
+        `Flight update notification sent to user ${userId} for booking ${bookingReference}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send flight update notification: ${error.message}`,
+        error.stack,
+        ``,
+      );
+    }
+  }
 }

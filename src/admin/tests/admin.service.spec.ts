@@ -8,6 +8,7 @@ import {
   CabinClass,
 } from '@prisma/client';
 import { NotFoundException } from '@nestjs/common';
+import { NotificationService } from '../../booking/notification.service';
 
 describe('AdminService', () => {
   let service: AdminService;
@@ -39,6 +40,14 @@ describe('AdminService', () => {
     },
   };
 
+  // Create a mock NotificationService
+  const mockNotificationService = {
+    sendBookingStatusNotification: jest.fn().mockResolvedValue(true),
+    sendFlightUpdateNotification: jest.fn().mockResolvedValue(true),
+    getNotificationEventsForUser: jest.fn(),
+    getAllNotificationEvents: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -46,6 +55,10 @@ describe('AdminService', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: NotificationService,
+          useValue: mockNotificationService,
         },
       ],
     }).compile();
@@ -300,7 +313,14 @@ describe('AdminService', () => {
   describe('updateBookingStatus', () => {
     const mockBooking = {
       id: '1',
+      bookingReference: 'BOOK123',
       status: BookingStatus.Pending,
+      userProfile: {
+        id: 'user1',
+        userId: 'auth0|user1',
+        email: 'user@example.com',
+        fullName: 'Test User',
+      },
     };
 
     it('should update booking status', async () => {
@@ -546,8 +566,26 @@ describe('AdminService', () => {
       mockPrismaService.flight.findUnique.mockResolvedValueOnce({
         ...mockFlight,
         bookings: [
-          { id: 'booking-1', status: BookingStatus.Confirmed },
-          { id: 'booking-2', status: BookingStatus.AwaitingPayment },
+          {
+            id: 'booking-1', 
+            status: BookingStatus.Confirmed,
+            userProfile: {
+              id: 'user1',
+              userId: 'auth0|user1',
+              email: 'user@example.com',
+              fullName: 'Test User',
+            },
+          },
+          {
+            id: 'booking-2', 
+            status: BookingStatus.AwaitingPayment,
+            userProfile: {
+              id: 'user2',
+              userId: 'auth0|user2',
+              email: 'user2@example.com',
+              fullName: 'Test User 2',
+            },
+          },
         ],
       });
 

@@ -11,12 +11,16 @@ import {
   UpdateFlightDto,
   FlightFilterDto,
 } from './dto/flight-management.dto';
+import { NotificationService } from '../booking/notification.service';
 
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async listUsers(filters: UserFilterDto) {
     const {
@@ -286,6 +290,9 @@ export class AdminService {
   ) {
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
+      include: {
+        userProfile: true,
+      },
     });
 
     if (!booking) {
@@ -323,6 +330,17 @@ export class AdminService {
 
     this.logger.log(
       `Updated booking ${bookingId} status to ${updateStatusDto.status}`,
+    );
+
+    // Send notification to the user about booking status change
+    await this.notificationService.sendBookingStatusNotification(
+      booking.userProfile.userId,
+      booking.id,
+      booking.bookingReference,
+      updateStatusDto.status,
+      booking.userProfile.email,
+      booking.userProfile.fullName,
+      `Your booking status has been updated to ${updateStatusDto.status} by an administrator.`,
     );
 
     return {
@@ -482,6 +500,9 @@ export class AdminService {
               in: [BookingStatus.Confirmed, BookingStatus.AwaitingPayment],
             },
           },
+          include: {
+            userProfile: true,
+          },
         },
       },
     });
@@ -510,6 +531,33 @@ export class AdminService {
           cancelledAt: new Date(),
         },
       });
+
+      // Send notifications to all affected users
+      for (const booking of existingFlight.bookings) {
+        await this.notificationService.sendBookingStatusNotification(
+          booking.userProfile.userId,
+          booking.id,
+          booking.bookingReference,
+          BookingStatus.Cancelled,
+          booking.userProfile.email,
+          booking.userProfile.fullName,
+          'Your booking has been cancelled because the flight was cancelled by the airline.',
+        );
+      }
+    } else if (existingFlight.bookings.length > 0) {
+      // For other flight updates, notify users of the change
+      for (const booking of existingFlight.bookings) {
+        await this.notificationService.sendFlightUpdateNotification(
+          booking.userProfile.userId,
+          booking.id,
+          booking.bookingReference,
+          existingFlight.id,
+          existingFlight.flightNumber,
+          booking.userProfile.email,
+          booking.userProfile.fullName,
+          'Your flight details have been updated. Please check your booking for the latest information.',
+        );
+      }
     }
 
     // Update the flight

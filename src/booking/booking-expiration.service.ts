@@ -4,6 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { BookingStatus } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { bookingConfig } from '../config/booking.config';
+import { NotificationService } from './notification.service';
 
 @Injectable()
 export class BookingExpirationService {
@@ -13,6 +14,7 @@ export class BookingExpirationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly notificationService: NotificationService,
   ) {
     // Get configuration for booking expiry and validate it
     const configValue = this.configService.get<number | string>(
@@ -79,6 +81,23 @@ export class BookingExpirationService {
                 'Booking expired due to payment not received in time',
             },
           });
+
+          // Send notification to the user
+          const userProfile = await prisma.userProfile.findUnique({
+            where: { id: booking.userProfileId },
+          });
+
+          if (userProfile) {
+            await this.notificationService.sendBookingStatusNotification(
+              userProfile.userId,
+              booking.id,
+              booking.bookingReference,
+              BookingStatus.Cancelled,
+              userProfile.email,
+              userProfile.fullName,
+              'Your booking has been cancelled because the payment time limit has expired.',
+            );
+          }
 
           // Release any active seat locks
           await prisma.seatLock.updateMany({

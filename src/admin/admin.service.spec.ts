@@ -3,6 +3,7 @@ import { AdminService } from './admin.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotFoundException } from '@nestjs/common';
 import { UserRole, BookingStatus, FlightStatus } from '@prisma/client';
+import { NotificationService } from '../booking/notification.service';
 
 describe('AdminService', () => {
   let service: AdminService;
@@ -38,6 +39,14 @@ describe('AdminService', () => {
       .mockImplementation((callback) => callback(mockPrismaService)),
   };
 
+  // Create a mock NotificationService
+  const mockNotificationService = {
+    sendBookingStatusNotification: jest.fn().mockResolvedValue(true),
+    sendFlightUpdateNotification: jest.fn().mockResolvedValue(true),
+    getNotificationEventsForUser: jest.fn(),
+    getAllNotificationEvents: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -45,6 +54,10 @@ describe('AdminService', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: NotificationService,
+          useValue: mockNotificationService,
         },
       ],
     }).compile();
@@ -308,6 +321,12 @@ describe('AdminService', () => {
         id: '1',
         bookingReference: 'BR12345',
         status: BookingStatus.AwaitingPayment,
+        userProfile: {
+          id: 'user1',
+          userId: 'auth0|user1',
+          email: 'user@example.com',
+          fullName: 'Test User',
+        },
       };
 
       const updatedBooking = {
@@ -341,6 +360,12 @@ describe('AdminService', () => {
         id: '1',
         bookingReference: 'BR12345',
         status: BookingStatus.Confirmed,
+        userProfile: {
+          id: 'user1',
+          userId: 'auth0|user1',
+          email: 'user@example.com',
+          fullName: 'Test User',
+        },
       };
 
       mockPrismaService.booking.findUnique.mockResolvedValueOnce(mockBooking);
@@ -596,8 +621,26 @@ describe('AdminService', () => {
         airline: 'Test Airlines',
         status: FlightStatus.Scheduled,
         bookings: [
-          { id: 'booking1', status: BookingStatus.Confirmed },
-          { id: 'booking2', status: BookingStatus.AwaitingPayment },
+          {
+            id: 'booking1',
+            status: BookingStatus.Confirmed,
+            userProfile: {
+              id: 'user1',
+              userId: 'auth0|user1',
+              email: 'user@example.com',
+              fullName: 'Test User',
+            },
+          },
+          {
+            id: 'booking2',
+            status: BookingStatus.AwaitingPayment,
+            userProfile: {
+              id: 'user2',
+              userId: 'auth0|user2',
+              email: 'user2@example.com',
+              fullName: 'Test User 2',
+            },
+          },
         ],
       };
 
