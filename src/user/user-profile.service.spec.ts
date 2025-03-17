@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UserProfileService } from './user-profile.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotFoundException, ConflictException } from '@nestjs/common';
-import { UserProfile } from '@prisma/client';
+import { UserProfile, UserRole } from '@prisma/client';
 import { CreateUserProfileDto } from './dto/create-user-profile.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 
@@ -33,6 +33,7 @@ describe('UserProfileService', () => {
     birthdate: new Date('1990-01-01'),
     paymentInfo: null,
     preferences: null,
+    role: UserRole.USER,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -75,8 +76,41 @@ describe('UserProfileService', () => {
 
       const result = await service.create(createDto);
       expect(result).toEqual(mockUserProfile);
+
+      // Check that the data object now includes the role field
       expect(mockPrismaService.userProfile.create).toHaveBeenCalledWith({
-        data: createDto,
+        data: {
+          ...createDto,
+          role: UserRole.USER,
+        },
+      });
+    });
+
+    it('should use the provided role if specified', async () => {
+      const createDto: CreateUserProfileDto = {
+        userId: 'auth0|123456789',
+        fullName: 'Admin User',
+        email: 'admin@example.com',
+        role: UserRole.ADMIN,
+      };
+
+      const adminProfile = {
+        ...mockUserProfile,
+        fullName: 'Admin User',
+        email: 'admin@example.com',
+        role: UserRole.ADMIN,
+      };
+
+      mockPrismaService.userProfile.create.mockResolvedValue(adminProfile);
+
+      const result = await service.create(createDto);
+      expect(result).toEqual(adminProfile);
+
+      expect(mockPrismaService.userProfile.create).toHaveBeenCalledWith({
+        data: {
+          ...createDto,
+          role: UserRole.ADMIN, // Keep the role as specified
+        },
       });
     });
 

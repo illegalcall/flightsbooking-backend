@@ -16,7 +16,7 @@ async function main() {
   await seedFlights(airports);
 
   // Seed a test user
-  await seedTestUser();
+  // await seedTestUser();
 
   console.log('Database seeding completed successfully!');
 }
@@ -382,7 +382,7 @@ async function processBatchOfFlights(flightBatch: any[]) {
   try {
     // Create all flights in one batch operation
     const flights = await prisma.flight.createMany({
-      data: flightBatch.map(({ totalSeats, ...flightData }) => flightData),
+      data: flightBatch,
       skipDuplicates: true, // Skip if flight number already exists
     });
 
@@ -444,89 +444,106 @@ async function processBatchOfFlights(flightBatch: any[]) {
  * @param flightId The flight ID
  * @param totalSeats The total seats configuration
  */
+/**
+ * Create seat records for a flight with realistic seat numbers
+ * @param flightId The flight ID
+ * @param totalSeats The total seats configuration
+ */
 async function createSeatsForFlight(
   flightId: string,
   totalSeats: Record<string, number>,
 ) {
-  // Define seat configurations per cabin
-  const seatsByClass: Record<CabinClass, { rows: number; cols: string[] }> = {
-    [CabinClass.First]: {
-      rows: Math.ceil(totalSeats[CabinClass.First] / 2),
-      cols: ['A', 'D'],
-    },
-    [CabinClass.Business]: {
-      rows: Math.ceil(totalSeats[CabinClass.Business] / 4),
-      cols: ['A', 'D', 'G', 'K'],
-    },
-    [CabinClass.PremiumEconomy]: {
-      rows: Math.ceil(totalSeats[CabinClass.PremiumEconomy] / 6),
-      cols: ['A', 'C', 'D', 'G', 'H', 'K'],
-    },
-    [CabinClass.Economy]: {
-      rows: Math.ceil(totalSeats[CabinClass.Economy] / 9),
-      cols: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'K'],
-    },
-  };
-
-  // Generate seats for each cabin class
+  // Track which seat numbers have been used
   const seatData = [];
+  let currentRow = 1;
 
-  // First class seats
+  // First Class (typically rows 1-4 with A,D,F,K configuration or similar)
   if (totalSeats[CabinClass.First] > 0) {
-    const config = seatsByClass[CabinClass.First];
-    for (let row = 1; row <= config.rows; row++) {
-      for (const col of config.cols) {
+    const firstClassRows = Math.ceil(totalSeats[CabinClass.First] / 4);
+    const firstClassCols = ['A', 'D', 'F', 'K']; // Luxurious 4-seat arrangement per row
+
+    for (let row = currentRow; row < currentRow + firstClassRows; row++) {
+      for (const col of firstClassCols) {
         seatData.push({
           flightId,
-          seatNumber: `1${row}${col}`,
+          seatNumber: `${row}${col}`,
           cabin: CabinClass.First,
           position: { row, col },
           isBlocked: false,
         });
       }
     }
+    currentRow += firstClassRows;
   }
 
-  // Business class seats
+  // Business Class (typically continuing after First Class)
   if (totalSeats[CabinClass.Business] > 0) {
-    const config = seatsByClass[CabinClass.Business];
-    for (let row = 1; row <= config.rows; row++) {
-      for (const col of config.cols) {
+    const businessRows = Math.ceil(totalSeats[CabinClass.Business] / 6);
+    const businessCols = ['A', 'C', 'D', 'G', 'H', 'K']; // 2-2-2 configuration
+
+    for (let row = currentRow; row < currentRow + businessRows; row++) {
+      for (const col of businessCols) {
         seatData.push({
           flightId,
-          seatNumber: `2${row}${col}`,
+          seatNumber: `${row}${col}`,
           cabin: CabinClass.Business,
           position: { row, col },
           isBlocked: false,
         });
       }
     }
+    currentRow += businessRows;
   }
 
-  // Premium Economy seats
+  // Premium Economy (continuing after Business)
   if (totalSeats[CabinClass.PremiumEconomy] > 0) {
-    const config = seatsByClass[CabinClass.PremiumEconomy];
-    for (let row = 1; row <= config.rows; row++) {
-      for (const col of config.cols) {
+    const premiumRows = Math.ceil(totalSeats[CabinClass.PremiumEconomy] / 7);
+    const premiumCols = ['A', 'B', 'C', 'D', 'E', 'G', 'K']; // 3-1-3 configuration
+
+    for (let row = currentRow; row < currentRow + premiumRows; row++) {
+      for (const col of premiumCols) {
         seatData.push({
           flightId,
-          seatNumber: `3${row}${col}`,
+          seatNumber: `${row}${col}`,
           cabin: CabinClass.PremiumEconomy,
           position: { row, col },
           isBlocked: false,
         });
       }
     }
+    currentRow += premiumRows;
   }
 
-  // Economy seats
+  // Economy Class (remaining rows)
   if (totalSeats[CabinClass.Economy] > 0) {
-    const config = seatsByClass[CabinClass.Economy];
-    for (let row = 1; row <= config.rows; row++) {
-      for (const col of config.cols) {
+    let economyRows;
+    let economyCols;
+
+    // Adjust layout based on aircraft type (can be determined from total seats)
+    const totalEconomySeats = totalSeats[CabinClass.Economy];
+
+    if (totalEconomySeats > 200) {
+      // Wide-body aircraft like 777, A350 (3-4-3 layout)
+      economyCols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K'];
+      economyRows = Math.ceil(totalEconomySeats / 10);
+    } else if (totalEconomySeats > 100) {
+      // Narrow-body aircraft like A320, 737 (3-3 layout)
+      economyCols = ['A', 'B', 'C', 'D', 'E', 'F'];
+      economyRows = Math.ceil(totalEconomySeats / 6);
+    } else {
+      // Regional aircraft (2-2 layout)
+      economyCols = ['A', 'B', 'C', 'D'];
+      economyRows = Math.ceil(totalEconomySeats / 4);
+    }
+
+    for (let row = currentRow; row < currentRow + economyRows; row++) {
+      for (const col of economyCols) {
+        // Skip the 'I' letter as it's not used in airline seat numbering
+        if (col === 'I') continue;
+
         seatData.push({
           flightId,
-          seatNumber: `4${row}${col}`,
+          seatNumber: `${row}${col}`,
           cabin: CabinClass.Economy,
           position: { row, col },
           isBlocked: Math.random() < 0.05, // 5% chance of a seat being blocked
@@ -541,6 +558,7 @@ async function createSeatsForFlight(
       const batch = seatData.slice(i, i + 100);
       await prisma.seat.createMany({
         data: batch,
+        skipDuplicates: true, // Skip duplicates to avoid unique constraint violations
       });
     } catch (error) {
       console.error('Failed to create seats in batch:', error);
@@ -554,6 +572,18 @@ async function createSeatsForFlight(
  */
 async function seedTestUser() {
   console.log('Seeding test user with Indian context...');
+
+  // Check if test user already exists
+  const existingUser = await prisma.userProfile.findUnique({
+    where: {
+      userId: 'test-user-id',
+    },
+  });
+
+  if (existingUser) {
+    console.log('Test user already exists, skipping...');
+    return;
+  }
 
   await prisma.userProfile.create({
     data: {

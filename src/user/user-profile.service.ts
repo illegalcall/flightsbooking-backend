@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserProfileDto } from './dto/create-user-profile.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
-import { UserProfile } from '@prisma/client';
+import { UserProfile, UserRole } from '@prisma/client';
 
 @Injectable()
 export class UserProfileService {
@@ -19,8 +19,14 @@ export class UserProfileService {
     createUserProfileDto: CreateUserProfileDto,
   ): Promise<UserProfile> {
     try {
+      // Ensure a default role is set if not provided
+      const dataToCreate = {
+        ...createUserProfileDto,
+        role: createUserProfileDto.role || UserRole.USER,
+      };
+
       const userProfile = await this.prisma.userProfile.create({
-        data: createUserProfileDto,
+        data: dataToCreate,
       });
       this.logger.log(`Created user profile with ID: ${userProfile.id}`);
       return userProfile;
