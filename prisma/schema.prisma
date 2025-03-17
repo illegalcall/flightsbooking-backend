@@ -10,6 +10,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Define UserRole enum for user access control
+enum UserRole {
+  USER
+  ADMIN
+}
+
 // User Profile model
 model UserProfile {
   id          String    @id @default(uuid())
@@ -19,13 +25,14 @@ model UserProfile {
   phone       String?
   address     String?
   birthdate   DateTime?
-  paymentInfo Json?     // Securely stored payment information
-  preferences Json?     // Travel preferences (seat, meal, frequent flyer numbers)
+  paymentInfo Json? // Securely stored payment information
+  preferences Json? // Travel preferences (seat, meal, frequent flyer numbers)
+  role        UserRole  @default(USER) // User role for access control
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  
+
   // Relation to bookings
-  bookings    Booking[]
+  bookings Booking[]
 }
 
 // Define CabinClass enum for flight seating options
@@ -77,18 +84,18 @@ model Flight {
   aircraftType  String
   departureTime DateTime
   arrivalTime   DateTime
-  duration      Int          // Duration in minutes
+  duration      Int // Duration in minutes
   originId      String
   destinationId String
-  basePrice     Float        // Base price in the lowest cabin class
-  totalSeats    Json         // JSON field with capacity breakdown by cabin class
+  basePrice     Float // Base price in the lowest cabin class
+  totalSeats    Json // JSON field with capacity breakdown by cabin class
   status        FlightStatus @default(Scheduled)
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
   // Relations
-  origin      Airport   @relation("departure", fields: [originId], references: [id])
-  destination Airport   @relation("arrival", fields: [destinationId], references: [id])
+  origin      Airport    @relation("departure", fields: [originId], references: [id])
+  destination Airport    @relation("arrival", fields: [destinationId], references: [id])
   bookings    Booking[]
   seats       Seat[]
   seatLocks   SeatLock[]
@@ -100,15 +107,15 @@ model Seat {
   flightId   String
   seatNumber String
   cabin      CabinClass
-  position   Json       // JSON with row, column information
+  position   Json // JSON with row, column information
   isBlocked  Boolean    @default(false) // For seats that are blocked for operational reasons
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
   // Relations
-  flight     Flight     @relation(fields: [flightId], references: [id])
-  bookings   Booking[]  @relation("bookedSeats")
-  seatLocks  SeatLock[]
+  flight    Flight     @relation(fields: [flightId], references: [id])
+  bookings  Booking[]  @relation("bookedSeats")
+  seatLocks SeatLock[]
 
   @@unique([flightId, seatNumber])
 }
@@ -123,39 +130,39 @@ enum BookingStatus {
 
 // Booking model
 model Booking {
-  id                String        @id @default(uuid())
-  bookingReference  String        @unique
-  userProfileId     String
-  flightId          String
-  passengerDetails  Json          // Passenger information including names, ages, etc.
-  selectedCabin     CabinClass
-  status            BookingStatus @default(Pending)
-  totalAmount       Float
-  paymentInfo       Json?         // Payment transaction references
+  id                 String        @id @default(uuid())
+  bookingReference   String        @unique
+  userProfileId      String
+  flightId           String
+  passengerDetails   Json // Passenger information including names, ages, etc.
+  selectedCabin      CabinClass
+  status             BookingStatus @default(Pending)
+  totalAmount        Float
+  paymentInfo        Json? // Payment transaction references
   cancellationReason String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  confirmedAt       DateTime?
-  cancelledAt       DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  confirmedAt        DateTime?
+  cancelledAt        DateTime?
 
   // Relations
-  userProfile  UserProfile @relation(fields: [userProfileId], references: [id])
-  flight       Flight      @relation(fields: [flightId], references: [id])
-  bookedSeats  Seat[]      @relation("bookedSeats")
+  userProfile UserProfile @relation(fields: [userProfileId], references: [id])
+  flight      Flight      @relation(fields: [flightId], references: [id])
+  bookedSeats Seat[]      @relation("bookedSeats")
 }
 
 // Seat locking system to prevent double bookings
 model SeatLock {
-  id          String         @id @default(uuid())
-  flightId    String
-  seatId      String
-  sessionId   String         // User session identifier
-  expiresAt   DateTime       // Lock expiration time (default 15 minutes)
-  status      SeatLockStatus @default(Active)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id        String         @id @default(uuid())
+  flightId  String
+  seatId    String
+  sessionId String // User session identifier
+  expiresAt DateTime // Lock expiration time (default 15 minutes)
+  status    SeatLockStatus @default(Active)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
 
   // Relations
-  flight      Flight         @relation(fields: [flightId], references: [id])
-  seat        Seat           @relation(fields: [seatId], references: [id])
-} 
+  flight Flight @relation(fields: [flightId], references: [id])
+  seat   Seat   @relation(fields: [seatId], references: [id])
+}

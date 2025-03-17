@@ -5,8 +5,10 @@ import {
   IsOptional,
   IsString,
   IsDate,
+  IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { UserRole } from '@prisma/client';
 
 export class CreateUserProfileDto {
   @ApiProperty({
@@ -86,4 +88,14 @@ export class CreateUserProfileDto {
   })
   @IsOptional()
   preferences?: Record<string, any>;
+
+  @ApiProperty({
+    description: 'Role of the user in the system',
+    enum: UserRole,
+    default: UserRole.USER,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
 }

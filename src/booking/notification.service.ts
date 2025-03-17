@@ -33,6 +33,7 @@ export class NotificationService {
    * @param status New booking status
    * @param email User email address
    * @param userName User name
+   * @param customMessage Optional custom message
    * @returns Success indicator
    */
   async sendBookingStatusNotification(
@@ -42,6 +43,7 @@ export class NotificationService {
     status: BookingStatus,
     email: string,
     userName: string,
+    customMessage?: string,
   ): Promise<boolean> {
     try {
       // Create a notification event
@@ -51,7 +53,7 @@ export class NotificationService {
         bookingReference,
         type: 'status_change',
         status,
-        message: this.getStatusChangeMessage(status),
+        message: customMessage || this.getStatusChangeMessage(status),
         timestamp: new Date(),
       };
 
@@ -60,7 +62,9 @@ export class NotificationService {
 
       // Log the notification
       this.logger.log(
-        `Sending booking status notification for booking ${bookingReference}: ${status}`,
+        `Sending booking status notification for booking ${bookingReference}: ${status}${
+          customMessage ? ` (${customMessage})` : ''
+        }`,
       );
 
       // Send email notification if enabled
@@ -70,6 +74,7 @@ export class NotificationService {
           userName,
           bookingReference,
           status,
+          customMessage,
         );
       }
 
@@ -116,6 +121,7 @@ export class NotificationService {
    * @param userName User's name
    * @param bookingReference Booking reference
    * @param status New booking status
+   * @param customMessage Optional custom message
    * @returns Success indicator
    */
   private async sendStatusChangeEmail(
@@ -123,6 +129,7 @@ export class NotificationService {
     userName: string,
     bookingReference: string,
     status: BookingStatus,
+    customMessage?: string,
   ): Promise<boolean> {
     const subject = `Booking ${bookingReference} Status Update`;
     const statusMessage = this.getStatusChangeMessage(status);
@@ -137,6 +144,8 @@ Your booking ${bookingReference} has been updated to: ${status}
 ${statusMessage}
 
 ${nextStepsMessage}
+
+${customMessage || ''}
 
 Thank you for booking with Flights Booking!
 
@@ -158,6 +167,8 @@ Flights Booking Team
   <p>${statusMessage}</p>
   
   <p>${nextStepsMessage}</p>
+  
+  <p>${customMessage || ''}</p>
   
   <p>Thank you for booking with Flights Booking!</p>
   
