@@ -1,26 +1,205 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
-</p>
+# Flights Booking API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A modern, robust backend service for flight booking operations built with NestJS and Prisma.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+![Flight Booking Banner](https://source.unsplash.com/featured/?airport,flight)
+
+## Features
+
+### User Management
+- User registration and authentication via Supabase
+- Profile management with personal details and travel preferences
+- Role-based access control (User/Admin)
+
+### Flight Management
+- Comprehensive flight search with filtering options
+- Real-time flight status updates
+- Detailed flight information (aircraft, airline, schedule)
+- Flight capacity management by cabin class
+
+### Booking System
+- Intuitive booking process with passenger details
+- Multiple cabin class support (Economy, Premium Economy, Business, First)
+- Seat selection with real-time availability
+- Temporary seat locking to prevent double bookings
+- Booking expiration for incomplete transactions
+
+### Payment Processing
+- Secure payment integration with Stripe
+- Support for various payment methods
+- Payment status tracking
+- Refund processing for cancellations
+
+### Notifications
+- Email confirmations for bookings
+- E-ticket generation and delivery
+- Flight status notifications
+- Booking reminders and updates
+
+### Admin Features
+- Flight management (create, update, cancel)
+- Airport management
+- User administration
+- Booking oversight and intervention
+
+## Architecture
+
+### Tech Stack
+- **Framework**: NestJS (TypeScript)
+- **Database**: PostgreSQL with Prisma ORM
+- **Authentication**: JWT with Supabase integration
+- **Documentation**: Swagger/OpenAPI
+- **Testing**: Jest
+- **Payments**: Stripe
+- **Email**: Nodemailer
+- **Containerization**: Docker
+
+### High-Level Architecture
+```
+┌─────────────────┐      ┌──────────────────┐      ┌───────────────┐
+│                 │      │                  │      │               │
+│  API Gateway    │─────▶│  NestJS Backend  │─────▶│  PostgreSQL   │
+│                 │      │                  │      │               │
+└─────────────────┘      └──────────────────┘      └───────────────┘
+                                 │  ▲
+                                 │  │
+                                 ▼  │
+┌─────────────────┐      ┌──────────────────┐      ┌───────────────┐
+│                 │      │                  │      │               │
+│  Supabase Auth  │◀────▶│  External APIs   │◀────▶│  Stripe       │
+│                 │      │  (Email, etc.)   │      │               │
+└─────────────────┘      └──────────────────┘      └───────────────┘
+```
+
+### Module Organization
+- **User Module**: Authentication, profile management
+- **Flight Module**: Flight search, status management
+- **Booking Module**: Reservation process, seat management
+- **Payment Module**: Payment processing, refunds
+- **Admin Module**: Administrative functions
+- **Notification Module**: Email and alerts
+
+## Data Model
+
+The system is built around these core entities:
+- **UserProfile**: Customer information and preferences
+- **Flight**: Flight details including schedule and capacity
+- **Airport**: Origin and destination information
+- **Seat**: Physical seat mapping on flights
+- **Booking**: Reservation details with passenger information
+- **SeatLock**: Temporary reservation during booking process
+
+## API Flow
+
+### Booking Flow
+1. User searches for flights with criteria
+2. System returns available flights
+3. User selects a flight and cabin class
+4. System displays available seats
+5. User selects seats and inputs passenger details
+6. System creates a temporary booking and locks seats
+7. User completes payment through Stripe
+8. System confirms booking and generates e-ticket
+9. Confirmation email sent to user
+
+### Flight Status Updates
+1. Admin updates flight status
+2. System processes status change
+3. Affected bookings are identified
+4. Notifications sent to relevant passengers
+
+## Tradeoffs and Design Decisions
+
+### Performance vs. Consistency
+- Temporary seat locking mechanism ensures booking integrity while maintaining system performance
+- Caching strategies for frequently accessed flight data
+
+### Security vs. User Experience
+- JWT-based authentication with reasonable expiration times
+- Stripe integration for secure payment processing, avoiding storing sensitive payment details
+
+### Scalability Considerations
+- Stateless API design for horizontal scaling
+- Database schema optimized for booking operations
+
+### Testing Strategy
+- Unit tests for core business logic
+- Integration tests for API endpoints
+- End-to-end tests for critical flows (booking, payment)
+
+## Getting Started
+
+### Prerequisites
+- Node.js 14+ and npm
+- PostgreSQL
+- Stripe account (for payment processing)
+- SMTP server (for email notifications)
+
+### Installation
+
+1. Clone the repository
+```bash
+git clone https://github.com/yourusername/flightsbooking-backend.git
+cd flightsbooking-backend
+```
+
+2. Install dependencies
+```bash
+npm install
+```
+
+3. Set up environment variables
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+4. Run database migrations
+```bash
+npx prisma migrate dev
+```
+
+5. Seed the database
+```bash
+npm run prisma:seed
+```
+
+6. Start the development server
+```bash
+npm run start:dev
+```
+
+7. Access the API documentation
+```
+http://localhost:4000/docs
+```
+
+### Docker Deployment
+
+```bash
+docker-compose up -d
+```
+
+## API Documentation
+
+Interactive API documentation is available at `/docs` when the server is running.
+
+## Testing
+
+```bash
+# Unit tests
+npm run test
+
+# Test coverage
+npm run test:cov
+
+# E2E tests
+npm run test:e2e
+```
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Description
 
